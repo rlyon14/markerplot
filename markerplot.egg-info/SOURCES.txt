@@ -1,9 +1,0 @@
-setup.py
-markerplot/__init__.py
-markerplot/markerplot.py
-markerplot/templates.py
-markerplot.egg-info/PKG-INFO
-markerplot.egg-info/SOURCES.txt
-markerplot.egg-info/dependency_links.txt
-markerplot.egg-info/requires.txt
-markerplot.egg-info/top_level.txt
