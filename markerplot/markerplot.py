@@ -198,7 +198,7 @@ class Marker(object):
 
 
 class MarkerPlot(object):
-    def __init__(self, nrow=1 , ncolumn=1, figsize=None, xreversed=False, xDisplay = None, smithchart=False):
+    def __init__(self, nrow=1 , ncolumn=1, figsize=None, xreversed=False, xDisplay = None, smithchart=False, aspect=None):
         self.smithchart = smithchart
         self.xDisplay = xDisplay
         self.xreversed = xreversed
@@ -317,6 +317,9 @@ class MarkerPlot(object):
 
         self.fig.canvas.draw()
         return
+
+    def show(self):
+        plt.show()
 
 
 
