@@ -76,7 +76,9 @@ def smithcircles(values, npoints = 5001):
     np.seterr(divide='warn', invalid='warn')
     return lines
 
-def format_smithchart(axes):
+def format_smithchart(axes, lines=None, admittance=False):
+    if lines == None:
+        lines = [2, 1, 0.5, 0.2, 0]
     plt.sca(axes)
     axes.set_aspect('equal')
     axes.spines['right'].set_color('none')
@@ -87,7 +89,7 @@ def format_smithchart(axes):
     axes.spines['left'].set_position(('data',0))
     axes.set_ylim(-1, 1)
     axes.set_xlim(-1, 1)
-    lines = smithcircles([2, 1, 0.5, 0.2, 0]) 
+    lines = smithcircles(lines) 
     plt.xticks([],fontsize=7)
     plt.yticks([], fontsize=7)
     axes.set_title('', fontsize=7)
@@ -96,7 +98,9 @@ def format_smithchart(axes):
     axes.add_line(lines[1])
     axes._markerlines.append(lines[0])
     axes._markerlines.append(lines[1])
-    #axes.add_line(lines[2])
-    #axes.add_line(lines[3])
+    if admittance:
+        axes.add_line(lines[2])
+        axes.add_line(lines[3])
+        axes._markerlines.append(lines[2])
+        axes._markerlines.append(lines[3])
     return axes
-
