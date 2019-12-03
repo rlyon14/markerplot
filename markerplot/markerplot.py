@@ -12,9 +12,10 @@ from tkinter import *
 import matplotlib
 
 class Marker(object):
-    def __init__(self, axes, xd, yd, showXline=True, showYdot=True, xdisplay=None, smithchart=False):
+    def __init__(self, axes, xd, yd, showXline=True, showYdot=True, xdisplay=None, smithchart=False, show_xlabel=True):
         self.axes = axes
         self.smithchart = smithchart
+        self.show_xlabel = show_xlabel
         self.showXline = False if smithchart else showXline
         self.showYdot = showYdot
         self.xline = None
@@ -73,14 +74,15 @@ class Marker(object):
             self.axes._markerlines.append(self.xline)
 
             txt = self.xdisplay[self.xidx] if len(self.xdisplay) > 0  else '{:.3f}'.format(xd) 
-            self.xtext = self.axes.text(xa, 0, txt, color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
-            xtext_dim = self.xtext.get_window_extent(self.renderer)
+            if (self.show_xlabel):
+                self.xtext = self.axes.text(xa, 0, txt, color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
+                xtext_dim = self.xtext.get_window_extent(self.renderer)
 
-            x1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[0]
-            x2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[0]
-            #print(x1, x2)
-            self.xlen = (x2-x1)/2
-            self.xtext.set_position((xa-self.xlen, 0))
+                x1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[0]
+                x2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[0]
+                #print(x1, x2)
+                self.xlen = (x2-x1)/2
+                self.xtext.set_position((xa-self.xlen, 0))
         
         self.yloc =[]
         xloc = []
@@ -141,9 +143,10 @@ class Marker(object):
         xa, ya = self.data2axes((xd, 0))
         if self.showXline:
             self.xline.set_xdata([xd, xd])
-            self.xtext.set_position((xa-self.xlen, 0))
-            txt = self.xdisplay[self.xidx] if len(self.xdisplay) > 0  else '{:.3f}'.format(xd) 
-            self.xtext.set_text(txt)
+            if self.show_xlabel:
+                self.xtext.set_position((xa-self.xlen, 0))
+                txt = self.xdisplay[self.xidx] if len(self.xdisplay) > 0  else '{:.3f}'.format(xd) 
+                self.xtext.set_text(txt)
 
         self.yloc = []
         xloc = []
@@ -181,7 +184,8 @@ class Marker(object):
 
     def remove(self):
         if self.showXline:
-            self.xtext.set_visible(False)
+            if self.show_xlabel:
+                self.xtext.set_visible(False)
             idx = self.axes.lines.index(self.xline)
             self.axes.lines.pop(idx)
         for i, l in enumerate(self.lines):		
@@ -198,9 +202,10 @@ class Marker(object):
 
 
 class MarkerPlot(object):
-    def __init__(self, nrow=1 , ncolumn=1, figsize=None, xreversed=False, xDisplay = None, smithchart=False, aspect=None):
+    def __init__(self, nrow=1 , ncolumn=1, figsize=None, xreversed=False, xDisplay = None, smithchart=False, aspect=None, show_xlabel=True):
         self.smithchart = smithchart
         self.xDisplay = xDisplay
+        self.show_xlabel = show_xlabel
         self.xreversed = xreversed
         if (figsize == None):
             figsize = (10,5)
@@ -237,7 +242,7 @@ class MarkerPlot(object):
         return line
 
     def add_marker(self, axes, xd, yd=None):
-        self.active_marker = Marker(axes, xd, yd, smithchart=self.smithchart, xdisplay=self.xDisplay)
+        self.active_marker = Marker(axes, xd, yd, smithchart=self.smithchart, xdisplay=self.xDisplay, show_xlabel=self.show_xlabel)
         self.markers[id(axes)].append(self.active_marker)
 
     def move_marker(self, xd, yd):
