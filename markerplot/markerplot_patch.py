@@ -202,7 +202,7 @@ class Marker(object):
                 return True
         return False
 
-class AxesMarkerManager(object):
+class MarkerManager(object):
     def __init__(self, axes, xreversed=False, xDisplay=None, smithchart=False, show_xlabel=True):
         self.smithchart = smithchart
         self.xDisplay = xDisplay
@@ -385,21 +385,24 @@ if __name__ == "__main__":
     import gorilla
 
     matplotlib.use('Qt4Agg') 
-
+    test_var = True
     def test(self):
-        print(self.figure)
+        print('test')
     fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=(10,5))
+    ax.enable_dynamic_markers()
 
-    #patch = gorilla.Patch(matplotlib.axes._subplots.SubplotBase, '_markermanager', AxesMarkerManager())
-    #gorilla.apply(patch)
+    patch = gorilla.Patch(matplotlib.axes._subplots.SubplotBase, 'test', test)
+    gorilla.apply(patch)
 
-    ax = interactive_markers(ax)
-
+    #ax = interactive_markers(ax)
+    
+    print(id(ax.test_var))
+    print(id(test_var))
     ax.plot(np.arange(10), np.arange(10), label='test1')
     ax.plot(np.arange(10), np.arange(10), label='test2')
     ax.plot(np.arange(10), np.arange(10), label='test3')
     ax.plot(np.arange(10), np.arange(10)-3, label='test4')
     #ax.add_marker(x=2)
     #ax.add_marker(x=7)
-
-    plt.show()
+    
+    plt.show_interactive()
