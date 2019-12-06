@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='markerplot',
-    description='dev package',
+    description='interactive cursor support for matplotlib',
     author='Rick Lyon',
     author_email='rlyon14@gmail.com',
     version='0.1.1',
@@ -10,6 +10,6 @@ setup(
     install_requires=(
 		'matplotlib>=3.1.0',
         'numpy',
-        'PyQt5'
+        'gorilla'
     ),
 )

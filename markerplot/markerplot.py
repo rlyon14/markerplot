@@ -1,21 +1,17 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes._axes import Axes
-from matplotlib.axes._subplots import SubplotBase
 from matplotlib.artist import Artist
 from matplotlib.lines import Line2D
-from datetime import datetime
 from matplotlib.figure import Figure
-import sys
-import tkinter
-from tkinter import *
+from matplotlib.lines import Line2D
 import gorilla
 import matplotlib
 
 class Marker(object):
-    def __init__(self, axes, xd, yd, showXline=True, showYdot=True, xdisplay=None, smithchart=False, show_xlabel=True):
+    def __init__(self, axes, xd, yd, showXline=True, showYdot=True, xdisplay=None, smithchart=False, show_xlabel=True, xreversed=False):
         self.axes = axes
+        self.xreversed = xreversed
         self.smithchart = smithchart
         self.show_xlabel = show_xlabel
         self.showXline = False if smithchart else showXline
@@ -33,7 +29,7 @@ class Marker(object):
         #self.lines = list(self.axes._datalines)
         self.lines = []
         for l in self.axes.lines:
-            if (l not in self.axes._markermanager.ignorelines):
+            if (l not in self.axes.marker_ignorelines):
                 self.lines.append(l)
 
         self.ydot = [None]*len(self.lines)
@@ -73,7 +69,7 @@ class Marker(object):
         if self.showXline:
             boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
             self.xline = self.axes.axvline(xd, linewidth=0.5, color='r')
-            self.axes._markermanager.ignorelines.append(self.xline)
+            self.axes.marker_ignorelines.append(self.xline)
 
             txt = self.xdisplay[self.xidx] if len(self.xdisplay) > 0  else '{:.3f}'.format(xd) 
             if (self.show_xlabel):
@@ -111,7 +107,7 @@ class Marker(object):
                 self.ydot[i].set_marker('.')
                 self.ydot[i].set_linestyle(':')
                 self.axes.add_line(self.ydot[i])
-                self.axes._markermanager.ignorelines.append(self.ydot[i])
+                self.axes.marker_ignorelines.append(self.ydot[i])
 
             xloc.append(xa)
         self.space_ylabels(xloc)
@@ -175,7 +171,8 @@ class Marker(object):
 
     def shiftMarker(self, direction):
         xlen = len(self.lines[0].get_xdata())
-        nxidx = self.xidx -1 if direction else self.xidx +1
+        direction = -direction if self.xreversed else direction
+        nxidx = self.xidx -1 if direction < 0 else self.xidx +1
         if (nxidx >= xlen):
             nxidx = xlen-1
         elif (nxidx <= 0):
@@ -202,79 +199,53 @@ class Marker(object):
                 return True
         return False
 
-class AxesMarkerManager(object):
-    def __init__(self, axes, xreversed=False, xDisplay=None, smithchart=False, show_xlabel=True):
-        self.smithchart = smithchart
-        self.xDisplay = xDisplay
-        self.show_xlabel = show_xlabel
-        self.xreversed = xreversed
-        self.markers = []
-        self.ignorelines = []
+class MarkerManager(object):
+    def __init__(self, fig):
+        self.fig = fig
 
         self.move = None
-        print(self.__class__.__bases__)
-        self.axes = axes
-        self.fig = self.axes.figure
-        self.active_marker = None
-        self.xdisplay = None
-        
         self.shift_is_held = False
         self.active_marker = None
-        #matplotlib.use('Qt4Agg')
+
         self.cidclick = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         self.cidpress = self.fig.canvas.mpl_connect('key_press_event', self.onkey_press)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('key_release_event', self.onkey_release)
         self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
 
-    def add_marker(self, x, y=None):
-        self.active_marker = Marker(self.axes, x, y, smithchart=self.smithchart, xdisplay=self.xDisplay, show_xlabel=self.show_xlabel)
-        self.markers.append(self.active_marker)
-
-    def move_marker(self, xd, yd):
-        if (self.active_marker == None): return
-        self.active_marker.move_to_point(xd, yd)
-
     def get_event_marker(self, axes, event):
-        if axes != self.axes: 
-            return None
-        for m in self.markers:
+        for m in axes.markers:
             if m.contains_event(event):
                 return m
         return None
-
-    def deleteMarker(self):
-        if (self.active_marker == None): return
-        idx = self.markers.index(self.active_marker)
-        self.active_marker.remove()
-        self.markers.pop(idx)
-        self.active_marker = self.markers[-1] if len(self.markers) > 0 else None
 
     def onkey_release(self, event):
         if event.key == 'shift':
             self.shift_is_held = False
 
     def onkey_press(self, event):
-        if self.active_marker == None:
+        axes = event.inaxes
+
+        if self.active_marker == None or axes == None:
             return
         elif event.key == 'shift':
             self.shift_is_held = True
         elif(event.key == 'left'):
-            self.active_marker.shiftMarker(False) if self.xreversed else self.active_marker.shiftMarker(True)
+            self.active_marker.shiftMarker(-1)
         elif(event.key == 'right'):
-            self.active_marker.shiftMarker(True) if self.xreversed else self.active_marker.shiftMarker(False)
+            self.active_marker.shiftMarker(1)
         elif(event.key == 'delete'):
-            self.deleteMarker()
+            self.active_marker = axes.delete_marker(self.active_marker)
         self.fig.canvas.draw()
 
     def onmotion(self, event):
         xd = event.xdata
         yd = event.ydata
         axes = event.inaxes
-        if axes == None or axes != self.move:
+        if axes == None or axes != self.move or self.active_marker == None:
             return
         
-        self.move_marker(xd, yd)
+        self.active_marker.move_to_point(xd, yd)
         self.fig.canvas.draw()
 
     def onrelease(self, event):
@@ -291,7 +262,7 @@ class AxesMarkerManager(object):
         m = self.get_event_marker(axes, event)
 
         if (m == None and (self.active_marker == None or self.shift_is_held == True)):
-            self.add_marker(xd, yd)
+            self.active_marker = axes.add_marker(xd, yd)
         elif (m != None): 
             self.active_marker = m
         elif (self.active_marker != None):
@@ -299,107 +270,37 @@ class AxesMarkerManager(object):
         else:
             return
         
-
         self.fig.canvas.draw()
         return
 
-def interactive_markers(axes, xreversed=False, xDisplay = None, smithchart=False, show_xlabel=True):
-    axes.grid(linewidth=0.5, linestyle='-')
-    axes._markermanager = AxesMarkerManager(axes, xreversed, xDisplay, smithchart, show_xlabel)
-    axes.add_marker = axes._markermanager.add_marker
-    return axes
+def add_marker(self, x, y=None):
+    ## get axes marker settings
+    params = self.marker_params
+    new_marker = Marker(self.axes, x, y, **params)#, smithchart=self.smithchart, xdisplay=self.xDisplay, show_xlabel=self.show_xlabel)
+    self.markers.append(new_marker)
+    return new_marker
 
-def interactive_plot(update_func, slider_num=1, slider_bounds=None, slider_names=None, title='', step_size=0.1):
-    """ 
-        update_func takes the line (in case you want to pull the current line data)
-        and new value as parameters and should return the x and y data of the updated line
-    """
-    if slider_bounds == None:
-        slider_bounds = [(0,1, 0.1)]*slider_num
+def delete_marker(self, marker):
+    idx = self.markers.index(marker)
+    marker.remove()
+    self.markers.pop(idx)
+    return self.markers[-1] if len(self.markers) > 0 else None
 
-    print(slider_bounds)
-    class Window(Frame):
-        def __init__(self, master=None):
-            self.slider_num = slider_num
-            self.update_func = update_func
-            # parameters that you want to send through the Frame class. 
-            Frame.__init__(self, master)   
+def set_marker_params(self, **kwargs):
+    self.marker_params.update(**kwargs)
+    
+def enable_dynamic_markers(self, **kwargs):
+    self._eventmanager = MarkerManager(self)
+    for ax in self.axes:
+        ax.grid(linewidth=0.5, linestyle='-')
+        ax.markers =[]
+        ax.marker_params = dict(**kwargs)
+        ax.marker_ignorelines = []
+    
+        patch = gorilla.Patch(ax.__class__, 'add_marker', add_marker)
+        gorilla.apply(patch)
 
-            self.master = master
-            self.init_window()
+        patch = gorilla.Patch(ax.__class__, 'delete_marker', delete_marker)
+        gorilla.apply(patch)
 
-            plt.ion()
-            plt.show(block=False)
 
-            self.grid(column=2,row=self.slider_num, sticky=(N,W,E,S) )
-            self.columnconfigure(2, weight = 1)
-            self.rowconfigure(self.slider_num, weight = 1)
-            self.pack(pady = 20, padx = 20)
-
-        #Creation of init_window
-        def init_window(self):
-            self.master.title(title)
-            # allowing the widget to take the full space of the root window
-            self.pack(fill=BOTH, expand=1)
-
-            self.slider = [None]*self.slider_num
-            for s in range(self.slider_num):
-                print(slider_bounds[s])
-                self.slider[s] = Scale(self, from_=slider_bounds[s][0], to=slider_bounds[s][1], resolution=slider_bounds[s][2], orient='horizontal',length=300, command=self.slider_event)
-                self.slider[s].grid(row =s, column = 1, sticky='nsew', padx=1, pady=1)
-                self.slider[s].focus_set()
-            if slider_names != None:
-                for i, n in enumerate(slider_names):
-                    l = Label(self, text=n)
-                    l.grid(row =i, column = 0, sticky='nsew', padx=1, pady=1)
-
-            self.slider_event()
-            
-            #slider.bind('<KeyRelease>', self.onKeyPress)
-            #self.valuelabel = Label(self, text="", width=20, anchor='w')
-            #self.valuelabel.grid(row = 1, column = 0, padx=0)
-
-        def slider_event(self, *args):
-            #self.valuelabel['text'] = str(val)
-            vals = [None]*self.slider_num
-            for s in range(self.slider_num):
-                vals[s] = self.slider[s].get()
-            self.update_func(*vals)
-            #self.update_line.set_data(xdata, ydata)
-            #self.update_line.axes.figure.canvas.draw()
-        
-        def onKeyPress(self, event):
-            slider = self.focus_get()
-            if event.keysym == 'Left' or event.keysym == 'Right':
-                self.slider_event(self.slider.get()+self.step_size)
-            #print('Got key press:', event.keysym)
-            
-    root = Tk()
-    #creation of an instance
-    app = Window(root)
-    root.mainloop()  
-
-if __name__ == "__main__":
-    #from markerplot import interactive_markers
-    import pylab as plt
-    import gorilla
-
-    matplotlib.use('Qt4Agg') 
-
-    def test(self):
-        print(self.figure)
-    fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=(10,5))
-
-    #patch = gorilla.Patch(matplotlib.axes._subplots.SubplotBase, '_markermanager', AxesMarkerManager())
-    #gorilla.apply(patch)
-
-    ax = interactive_markers(ax)
-
-    ax.plot(np.arange(10), np.arange(10), label='test1')
-    ax.plot(np.arange(10), np.arange(10), label='test2')
-    ax.plot(np.arange(10), np.arange(10), label='test3')
-    ax.plot(np.arange(10), np.arange(10)-3, label='test4')
-    #ax.add_marker(x=2)
-    #ax.add_marker(x=7)
-
-    plt.show()
