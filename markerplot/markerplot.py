@@ -5,17 +5,16 @@ from matplotlib.artist import Artist
 from matplotlib.lines import Line2D
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-import gorilla
 import matplotlib
 
 class Marker(object):
-    def __init__(self, axes, xd, yd, showXline=True, showYdot=True, xdisplay=None, smithchart=False, show_xlabel=True, xreversed=False):
+    def __init__(self, axes, xd, yd, show_xline=True, show_dot=True, xdisplay=None, smithchart=False, show_xlabel=True, xreversed=False):
         self.axes = axes
         self.xreversed = xreversed
         self.smithchart = smithchart
         self.show_xlabel = show_xlabel
-        self.showXline = False if smithchart else showXline
-        self.showYdot = showYdot
+        self.show_xline = False if smithchart else show_xline
+        self.show_dot = show_dot
         self.xline = None
         self.xdisplay = xdisplay if isinstance(xdisplay, (list, np.ndarray)) else []
 
@@ -42,11 +41,11 @@ class Marker(object):
         if (len(self.lines) < 1):
             raise RuntimeError()
 
-        self.createMarker(xd, yd)
+        self.create(xd, yd)
 
-    def _find_xidx(self, xd, yd=None):
+    def find_xidx(self, xd, yd=None):
         mline, xidx, mdist = None, 0, np.inf
-        if (yd == None or self.showXline):
+        if (yd == None or self.show_xline):
             mline = self.lines[0]
             xidx = (np.abs(mline.get_xdata()-xd)).argmin()
         else:
@@ -59,14 +58,14 @@ class Marker(object):
                     mline, xidx, mdist  = l, xidx_l, mdist_l
         return mline, xidx
 
-    def createMarker(self, xd, yd=None):
+    def create(self, xd, yd=None):
         #print(xd, yd)
-        mline, self.xidx = self._find_xidx(xd, yd)
+        mline, self.xidx = self.find_xidx(xd, yd)
         xd, yd = mline.get_xdata()[self.xidx], mline.get_ydata()[self.xidx]	
         xa, ya = self.data2axes((xd, yd))
         #print(xa, ya , self.xidx)
 
-        if self.showXline:
+        if self.show_xline:
             boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
             self.xline = self.axes.axvline(xd, linewidth=0.5, color='r')
             self.axes.marker_ignorelines.append(self.xline)
@@ -102,7 +101,7 @@ class Marker(object):
             #print(ytext_dim)
             self.yloc.append(ya)
 
-            if self.showYdot:
+            if self.show_dot:
                 self.ydot[i] = Line2D([xd], [yd], linewidth=10, color=l.get_color(), markersize=10)
                 self.ydot[i].set_marker('.')
                 self.ydot[i].set_linestyle(':')
@@ -135,11 +134,11 @@ class Marker(object):
             ylabels[i].set_position((xa[i]+0.01, y))
         self.yloc = yloc
 
-    def moveToIdx(self, xidx):
+    def move_to_xindex(self, xidx):
         self.xidx = xidx
         xd = self.lines[0].get_xdata()[self.xidx]
         xa, ya = self.data2axes((xd, 0))
-        if self.showXline:
+        if self.show_xline:
             self.xline.set_xdata([xd, xd])
             if self.show_xlabel:
                 self.xtext.set_position((xa-self.xlen, 0))
@@ -158,7 +157,7 @@ class Marker(object):
                 label = '{:0.3f}'.format(yd) #if self.labels[i] != None else '{:0.3f}'.format(yd)
             self.yloc.append(ya)
             self.ytext[i].set_text(label)
-            if self.showYdot:
+            if self.show_dot:
                 self.ydot[i].set_data([xd], [yd])
             dim = self.ytext[i].get_window_extent(renderer=self.renderer)
             xloc.append(xa)
@@ -166,10 +165,10 @@ class Marker(object):
         self.space_ylabels(xloc)
 
     def move_to_point(self, xd, yd):
-        self.mline, self.xidx = self._find_xidx(xd, yd)
-        self.moveToIdx(self.xidx)
+        self.mline, self.xidx = self.find_xidx(xd, yd)
+        self.move_to_xindex(self.xidx)
 
-    def shiftMarker(self, direction):
+    def shift(self, direction):
         xlen = len(self.lines[0].get_xdata())
         direction = -direction if self.xreversed else direction
         nxidx = self.xidx -1 if direction < 0 else self.xidx +1
@@ -179,10 +178,10 @@ class Marker(object):
             nxidx = 0
         self.xidx = nxidx
 
-        self.moveToIdx(self.xidx)
+        self.move_to_xindex(self.xidx)
 
     def remove(self):
-        if self.showXline:
+        if self.show_xline:
             if self.show_xlabel:
                 self.xtext.set_visible(False)
             idx = self.axes.lines.index(self.xline)
@@ -231,9 +230,9 @@ class MarkerManager(object):
         elif event.key == 'shift':
             self.shift_is_held = True
         elif(event.key == 'left'):
-            self.active_marker.shiftMarker(-1)
+            self.active_marker.shift(-1)
         elif(event.key == 'right'):
-            self.active_marker.shiftMarker(1)
+            self.active_marker.shift(1)
         elif(event.key == 'delete'):
             self.active_marker = axes.marker_delete(self.active_marker)
         self.fig.canvas.draw()
@@ -272,35 +271,4 @@ class MarkerManager(object):
         
         self.fig.canvas.draw()
         return
-"""
-def marker_add(self, x, y=None):
-    ## get axes marker settings
-    params = self.marker_params
-    new_marker = Marker(self.axes, x, y, **params)#, smithchart=self.smithchart, xdisplay=self.xDisplay, show_xlabel=self.show_xlabel)
-    self.markers.append(new_marker)
-    return new_marker
-
-def marker_delete(self, marker):
-    idx = self.markers.index(marker)
-    marker.remove()
-    self.markers.pop(idx)
-    return self.markers[-1] if len(self.markers) > 0 else None
-
-def marker_set_params(self, **kwargs):
-    self.marker_params.update(**kwargs)
-    
-def enable_dynamic_markers(self, **kwargs):
-    self._eventmanager = MarkerManager(self)
-    for ax in self.axes:
-        ax.grid(linewidth=0.5, linestyle='-')
-        ax.markers =[]
-        ax.marker_params = dict(**kwargs)
-        ax.marker_ignorelines = []
-    
-        patch = gorilla.Patch(ax.__class__, 'marker_add', marker_add)
-        gorilla.apply(patch)
-
-        patch = gorilla.Patch(ax.__class__, 'marker_delete', marker_delete)
-        gorilla.apply(patch)
-"""
 

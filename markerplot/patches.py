@@ -12,6 +12,7 @@ import matplotlib
 def marker_add(self, x, y=None):
     params = self.marker_params
     new_marker = Marker(self.axes, x, y, **params)#, smithchart=self.smithchart, xdisplay=self.xDisplay, show_xlabel=self.show_xlabel)
+    
     self.markers.append(new_marker)
     return new_marker
 
