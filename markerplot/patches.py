@@ -32,15 +32,16 @@ def marker_enable(self, **kwargs):
         ax.markers =[]
         ax.marker_params = dict(**kwargs)
         ax.marker_ignorelines = []
-    
-        patch = gorilla.Patch(ax.__class__, 'marker_add', marker_add)
-        gorilla.apply(patch)
+        
+        if not hasattr(ax.__class__, 'marker_add'):
+            patch = gorilla.Patch(ax.__class__, 'marker_add', marker_add)
+            gorilla.apply(patch)
 
-        patch = gorilla.Patch(ax.__class__, 'marker_delete', marker_delete)
-        gorilla.apply(patch)
+            patch = gorilla.Patch(ax.__class__, 'marker_delete', marker_delete)
+            gorilla.apply(patch)
 
-        patch = gorilla.Patch(ax.__class__, 'marker_set_params', marker_set_params)
-        gorilla.apply(patch)
+            patch = gorilla.Patch(ax.__class__, 'marker_set_params', marker_set_params)
+            gorilla.apply(patch)
 
 patch = gorilla.Patch(matplotlib.figure.Figure, 'marker_enable', marker_enable)
 gorilla.apply(patch)
