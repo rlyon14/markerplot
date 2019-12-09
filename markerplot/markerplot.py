@@ -235,7 +235,7 @@ class MarkerManager(object):
         elif(event.key == 'right'):
             self.active_marker.shiftMarker(1)
         elif(event.key == 'delete'):
-            self.active_marker = axes.delete_marker(self.active_marker)
+            self.active_marker = axes.marker_delete(self.active_marker)
         self.fig.canvas.draw()
 
     def onmotion(self, event):
@@ -262,7 +262,7 @@ class MarkerManager(object):
         m = self.get_event_marker(axes, event)
 
         if (m == None and (self.active_marker == None or self.shift_is_held == True)):
-            self.active_marker = axes.add_marker(xd, yd)
+            self.active_marker = axes.marker_add(xd, yd)
         elif (m != None): 
             self.active_marker = m
         elif (self.active_marker != None):
@@ -272,21 +272,21 @@ class MarkerManager(object):
         
         self.fig.canvas.draw()
         return
-
-def add_marker(self, x, y=None):
+"""
+def marker_add(self, x, y=None):
     ## get axes marker settings
     params = self.marker_params
     new_marker = Marker(self.axes, x, y, **params)#, smithchart=self.smithchart, xdisplay=self.xDisplay, show_xlabel=self.show_xlabel)
     self.markers.append(new_marker)
     return new_marker
 
-def delete_marker(self, marker):
+def marker_delete(self, marker):
     idx = self.markers.index(marker)
     marker.remove()
     self.markers.pop(idx)
     return self.markers[-1] if len(self.markers) > 0 else None
 
-def set_marker_params(self, **kwargs):
+def marker_set_params(self, **kwargs):
     self.marker_params.update(**kwargs)
     
 def enable_dynamic_markers(self, **kwargs):
@@ -297,10 +297,10 @@ def enable_dynamic_markers(self, **kwargs):
         ax.marker_params = dict(**kwargs)
         ax.marker_ignorelines = []
     
-        patch = gorilla.Patch(ax.__class__, 'add_marker', add_marker)
+        patch = gorilla.Patch(ax.__class__, 'marker_add', marker_add)
         gorilla.apply(patch)
 
-        patch = gorilla.Patch(ax.__class__, 'delete_marker', delete_marker)
+        patch = gorilla.Patch(ax.__class__, 'marker_delete', marker_delete)
         gorilla.apply(patch)
-
+"""
 

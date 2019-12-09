@@ -97,11 +97,13 @@ def format_smithchart(axes, lines=None, admittance=False):
     #plt.tight_layout()
     axes.add_line(lines[0])
     axes.add_line(lines[1])
-    axes.marker_ignorelines.append(lines[0])
-    axes.marker_ignorelines.append(lines[1])
+    if hasattr(ax, 'markers'):
+        axes.marker_ignorelines.append(lines[0])
+        axes.marker_ignorelines.append(lines[1])
     if admittance:
         axes.add_line(lines[2])
         axes.add_line(lines[3])
-        axes.marker_ignorelines.append(lines[2])
-        axes.marker_ignorelines.append(lines[3])
+        if hasattr(ax, 'markers'):
+            axes.marker_ignorelines.append(lines[2])
+            axes.marker_ignorelines.append(lines[3])
     return axes
