@@ -25,7 +25,7 @@ def marker_delete(self, marker):
 def marker_set_params(self, **kwargs):
     self.marker_params.update(dict(**kwargs))
     
-def marker_enable(self, **kwargs):
+def marker_enable(self,  **kwargs):
     self._eventmanager = MarkerManager(self)
     for ax in self.axes:
         ax.grid(linewidth=0.5, linestyle='-')
