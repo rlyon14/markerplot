@@ -11,6 +11,7 @@ dir_ = Path(__file__).parent
 matplotlib.use('Qt4Agg') 
 
 fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=(10,5))
+print(fig.__class__)
 fig.marker_enable()
 
 x = np.linspace(-2*np.pi, 2*np.pi, 100)
