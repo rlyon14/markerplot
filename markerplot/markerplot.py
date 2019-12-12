@@ -37,9 +37,17 @@ class Marker(object):
 
         #self.lines = list(self.axes._datalines)
         self.lines = []
+        
+        xmin, xmax = np.inf, -np.inf
+        self.span_line = None
         for l in self.axes.lines:
             if (l not in self.axes.marker_ignorelines):
                 self.lines.append(l)
+                if np.max(l.get_xdata()) > xmax:
+                    xmax = np.max(l.get_xdata()) 
+                if np.min(l.get_xdata()) < xmin:
+                    xmin = np.min(l.get_xdata()) 
+                
 
         self.ydot = [None]*len(self.lines)
         self.ytext = [None]*len(self.lines)
@@ -56,17 +64,18 @@ class Marker(object):
 
     def find_nearest_xdpoint(self, xd, yd=None):
         mline, xdpoint, mdist = None, 0, np.inf
-        if (yd == None or self.show_xline):
-            xidx = np.argmin(np.abs(self.lines[0].get_xdata()-xd))
-            xdpoint = self.lines[0].get_xdata()[xidx]
-        else:
-            for l in self.lines:
-                xl, yl = l.get_xdata(), l.get_ydata()
 
+        for l in self.lines:
+            xl, yl = l.get_xdata(), l.get_ydata()
+
+            if yd==None:
+                dist = (xl - xd)**2
+            else:
                 dist = (xl - xd)**2 + (yl-yd)**2	## array of distances (squared) of every point on the line from the point xd, yd
-                xidx_l, mdist_l = np.argmin(dist), np.min(dist)   ## index and distance of the point on the line with the closest distance to xd, yd
-                if mdist_l < mdist:
-                    mline, xdpoint, mdist  = l, l.get_xdata(xidx_l), mdist_l
+            xidx_l, mdist_l = np.argmin(dist), np.min(dist)   ## index and distance of the point on the line with the closest distance to xd, yd
+            
+            if mdist_l < mdist:
+                mline, xdpoint, mdist  = l, l.get_xdata()[xidx_l], mdist_l
         return xdpoint
 
     def create(self, xd, yd=None):
@@ -74,6 +83,7 @@ class Marker(object):
         self.xdpoint = self.find_nearest_xdpoint(xd, yd)
         print(self.xdpoint)
         #xd, yd = mline.get_xdata()[self.xidx], mline.get_ydata()[self.xidx]	
+        print('h', self.xdpoint)
         xa, ya = self.data2axes((self.xdpoint, 0))
         print('t', xa, ya)
 
@@ -155,19 +165,13 @@ class Marker(object):
             ylabels[i].set_position((xa[i]+0.01, y))
         self.yloc = yloc
 
-    def _move_to_xindex(self, xindex):
+
+    def move_to_point(self, xd, yd=None):
+        self.xdpoint = self.find_nearest_xdpoint(xd, yd)
         for i, l in enumerate(self.lines):
-            xlen = len(l.get_xdata())
-            if (xindex[i] >= xlen):
-                xindex[i]= xlen-1
-            elif (xindex[i] <= 0):
-                xindex[i] = 0
-
-        #if l.get_xdata()[self.xidx[i]] >= self.xdpoint else self.xidx[i]
-        #nxidx[i] =  self.xidx[i] +1 #if l.get_xdata()[self.xidx[i]] <= self.xdpoint  else self.xidx[i]
-
-        self.xidx = list(xindex)
-        self.xdpoint = self.lines[0].get_xdata()[xindex[0]]
+            self.xidx[i] = np.argmin(np.abs(l.get_xdata()-self.xdpoint))
+        #self._move_to_xindex(self.xidx)
+        
         xd = self.xdpoint
         xa, ya = self.data2axes((xd, 0))
         if self.show_xline:
@@ -185,10 +189,9 @@ class Marker(object):
 
                 self.xtext.set_position((xa-xlen, 0))
 
-        ## create all objects regardless of settings, set visibility
-
+        ## TODO: create all objects regardless of settings, set visibility
+        xloc =[]
         self.yloc = []
-        xloc = []
         for i, l in enumerate(self.lines):
             if self.xdpoint > l.get_xdata()[-1] or self.xdpoint < l.get_xdata()[0]:
                 self.ytext[i].set_visible(False)
@@ -198,6 +201,7 @@ class Marker(object):
                 self.ydot[i].set_visible(True)
 
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]	
+            print('yd', yd)
             xa, ya = self.data2axes((xd, yd))
             self.ytext[i].set_position((xa+0.01, ya))
             if self.smithchart and len(self.xdisplay) > 0:
@@ -210,37 +214,28 @@ class Marker(object):
                 self.ydot[i].set_data([xd], [yd])
             dim = self.ytext[i].get_window_extent(renderer=self.renderer)
             xloc.append(xa)
+            self.yloc.append(ya)
         
-        self.space_ylabels(xloc)
+        #self.space_ylabels(xloc)
 
-    def move_to_point(self, xd, yd):
-        self.xdpoint = self.find_nearest_xdpoint(xd, yd)
-        for i, l in enumerate(self.lines):
-            self.xidx[i] = np.argmin(np.abs(l.get_xdata()-self.xdpoint))
-        self._move_to_xindex(self.xidx)
 
     def shift(self, direction):
         direction = -direction if self.xreversed else direction
+        new_xpoint = np.inf if direction < 0 else -np.inf
+        xmax, xmin = -np.inf, np.inf
 
-        # xmin, xmax = np.inf, -np.inf
-        # for i, l in enumerate(self.lines):
-        #     if l.get_xdata()[self.xidx[i]] > xmax:
-        #         xmax = l.get_xdata()[self.xidx[i]]
-
-        #     if l.get_xdata()[self.xidx[i]] < xmin:
-        #         xmin = l.get_xdata()[self.xidx[i]]
-
-        #print(xmax)
-        nxidx = list(self.xidx)
         for i, l in enumerate(self.lines):
-            xlen = len(l.get_xdata())
             
+            temp_x = l.get_xdata()[self.xidx[i]] 
             if direction < 0:
-                nxidx[i] = self.xidx[i] -1 if l.get_xdata()[self.xidx[i]] >= self.xdpoint else self.xidx[i]
+                if temp_x > xmax:
+                    xmax = temp_x
+                    new_xpoint = l.get_xdata()[self.xidx[i]] 
             else:
-                nxidx[i] =  self.xidx[i] +1 if l.get_xdata()[self.xidx[i]] <= self.xdpoint  else self.xidx[i]
+                if temp_x < xmin:
+                    new_xpoint = temp_x
 
-        self._move_to_xindex(nxidx)
+        self.move_to_point(new_xpoint)
 
     def remove(self):
         if self.show_xline:
