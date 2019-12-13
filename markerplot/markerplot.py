@@ -8,17 +8,17 @@ from matplotlib.lines import Line2D
 import matplotlib
 
 class Marker(object):
-    def __init__(self, axes, xd, yd, show_xline=True, show_dot=True, xdisplay=None, smithchart=False, show_xlabel=True, xreversed=False):
+    def __init__(self, axes, xd, yd, show_xline=True, show_dot=True, yformat=None, xformat=None, show_xlabel=True, xreversed=False):
         
         self.axes = axes
+        self.yformat = yformat
+        self.xformat = xformat
         self.xreversed = xreversed
-        self.smithchart = smithchart
         self.show_xlabel = show_xlabel
-        self.show_xline = False if smithchart else show_xline
+        self.show_xline = show_xline
         self.show_dot = show_dot
         self.xline = None
         self.height_ylabel = 0
-        self.xdisplay = xdisplay if isinstance(xdisplay, (list, np.ndarray)) else []
 
         #self.data2display = self.axes.transData.transform
         #self.display2data = self.axes.transData.inverted().transform
@@ -27,12 +27,17 @@ class Marker(object):
 
         scale_func = {'log': np.log10, 'linear': lambda x: x}
 
-        def data2axes(p):
+        ## future matplotlib versions (and maybe past versions) might keep the tranform functions synced with the scale.
+        ## for 3.1.1 we have to do this manually
+        def data2axes(point):
             xscale = self.axes.get_xscale()
             yscale = self.axes.get_yscale()
 
-            xd = scale_func[xscale](p[0])
-            yd = scale_func[yscale](p[1])
+            assert xscale in scale_func, 'x-axes scale: {} not supported'.format(xscale)
+            assert yscale in scale_func, 'y-axes scale: {} not supported'.format(yscale)
+
+            xd = scale_func[xscale](point[0])
+            yd = scale_func[yscale](point[1])
 
             return self.axes.transLimits.transform((xd,yd))
 
@@ -40,17 +45,22 @@ class Marker(object):
         self.axes2display = self.axes.transAxes.transform
         self.display2axes = self.axes.transAxes.inverted().transform
 
+        ## set ylabel_gap to 8 display units, convert to axes coordinates
+        self.ylabel_gap = self.display2axes((8,0))[0] - self.display2axes((0,0))[0]
+
         self.lines = []
         
+        ## keep track of all lines we want to add markers to
         for l in self.axes.lines:
             if (l not in self.axes.marker_ignorelines):
                 self.lines.append(l)
                 
         self.ydot = [None]*len(self.lines)
         self.ytext = [None]*len(self.lines)
-        self.xdpoint = []
+        self.xdpoint = None
         self.xidx = [0]*len(self.lines)
         self.renderer = self.axes.figure.canvas.get_renderer()
+        self.line_xbounds = [None]*len(self.lines)
 
         if (len(self.lines) < 1):
             raise RuntimeError('Markers cannot be added to axes with no data lines.')
@@ -89,7 +99,7 @@ class Marker(object):
         for i, l in enumerate(self.lines):
     
             boxparams = dict(facecolor='black', edgecolor=l.get_color(), linewidth=1.6, boxstyle='round', alpha=0.7)
-            self.ytext[i] = self.axes.text(xa+0.01, 0, '0' ,color='white', fontsize=8, transform = self.axes.transAxes, verticalalignment='center', bbox=boxparams)
+            self.ytext[i] = self.axes.text(xa+self.ylabel_gap, 0, '0' ,color='white', fontsize=8, transform = self.axes.transAxes, verticalalignment='center', bbox=boxparams)
 
             self.ydot[i] = Line2D([0], [0], linewidth=10, color=l.get_color(), markersize=10)
             self.ydot[i].set_marker('.')
@@ -98,6 +108,7 @@ class Marker(object):
             self.axes.marker_ignorelines.append(self.ydot[i])
             if not self.show_dot:
                 self.ydot[i].set_visible(False)
+            self.line_xbounds[i] = np.min(l.get_xdata()), np.max(l.get_xdata())
 
         ## compute height of ylabels, these should all be identical
         ytext_dim = self.ytext[0].get_window_extent(self.renderer)
@@ -110,7 +121,7 @@ class Marker(object):
 
         ## set visibility
         if not self.show_xlabel:
-            self.xlabel.set_visible(False)
+            self.xtext.set_visible(False)
         if not self.show_xline:
             self.xline.set_visible(False)
 
@@ -136,7 +147,7 @@ class Marker(object):
                         yloc[j] -= abs(ovl)
 
         for i, y in enumerate(yloc):
-            ylabels[i].set_position((xa[i]+0.01, y))
+            ylabels[i].set_position((xa[i]+self.ylabel_gap, y))
         self.yloc = yloc
 
 
@@ -152,7 +163,11 @@ class Marker(object):
         xa, ya = self.data2axes((self.xdpoint, 0))
 
         ## xlabel text
-        txt = self.xdisplay[self.xidx[0]] if len(self.xdisplay) > 0  else '{:.3f}'.format(self.xdpoint) 
+        if self.xformat != None:
+            txt = self.xformat(self.xdpoint)
+        else:
+            txt = '{:.3f}'.format(self.xdpoint) 
+
         self.xtext.set_text(txt)
 
         ## xlabel placement
@@ -167,8 +182,8 @@ class Marker(object):
         self.yloc = []
         for i, l in enumerate(self.lines):
 
-            ## turn off ylabel if ypoint is out of bounds
-            if self.xdpoint > l.get_xdata()[-1] or self.xdpoint < l.get_xdata()[0]:
+            ## turn off ylabel and dot if ypoint is out of bounds
+            if (self.xdpoint > self.line_xbounds[i][1]) or (self.xdpoint < self.line_xbounds[i][0]):
                 self.ytext[i].set_visible(False)
                 self.ydot[i].set_visible(False)
             else:
@@ -176,22 +191,19 @@ class Marker(object):
                 self.ydot[i].set_visible(True)
 
             ## ylabel and dot position
-            xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]	
+            xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
+
             xa, ya = self.data2axes((xd, yd))
-            self.ytext[i].set_position((xa+0.01, ya))
+            self.ytext[i].set_position((xa+self.ylabel_gap, ya))
             self.ydot[i].set_data([xd], [yd])
 
             ## ylabel text
-            if self.smithchart and len(self.xdisplay) > 0:
-                
-                if isinstance(self.xdisplay[self.xidx[i]], float):
-                    label = '{:0.3f}'.format(self.xdisplay[self.xidx[i]]) 
-                else:
-                    label = self.xdisplay[self.xidx[i]]
+            if self.yformat != None:
+                txt = self.yformat(yd)
             else:
-                label = '{:0.3f}'.format(yd) 
+                txt = '{:0.3f}'.format(yd)
 
-            self.ytext[i].set_text(label)
+            self.ytext[i].set_text(txt)
             
             xloc.append(xa)
             self.yloc.append(ya)
