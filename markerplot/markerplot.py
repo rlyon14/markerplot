@@ -8,7 +8,7 @@ from matplotlib.lines import Line2D
 import matplotlib
 
 class Marker(object):
-    def __init__(self, axes, xd, yd, show_xline=True, show_dot=True, yformat=None, xformat=None, show_xlabel=True, xreversed=False):
+    def __init__(self, axes, xd, yd, xmode=True, show_xline=True, show_dot=True, yformat=None, xformat=None, show_xlabel=True, xreversed=False):
         
         self.axes = axes
         self.yformat = yformat
@@ -19,6 +19,7 @@ class Marker(object):
         self.show_dot = show_dot
         self.xline = None
         self.height_ylabel = 0
+        self.xmode = xmode
 
         #self.data2display = self.axes.transData.transform
         #self.display2data = self.axes.transData.inverted().transform
@@ -73,7 +74,7 @@ class Marker(object):
         for l in self.lines:
             xl, yl = l.get_xdata(), l.get_ydata()
 
-            if yd==None:
+            if yd==None or self.xmode:
                 dist = (xl - xd)**2
             else:
                 dist = (xl - xd)**2 + (yl-yd)**2

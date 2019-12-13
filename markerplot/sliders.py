@@ -20,7 +20,6 @@ def interactive_slider(update_func, slider_num=1, slider_bounds=None, slider_nam
     if slider_bounds == None:
         slider_bounds = [(0,1, 0.1)]*slider_num
 
-    print(slider_bounds)
     class Window(Frame):
         def __init__(self, master=None):
             self.slider_num = slider_num
@@ -47,7 +46,6 @@ def interactive_slider(update_func, slider_num=1, slider_bounds=None, slider_nam
 
             self.slider = [None]*self.slider_num
             for s in range(self.slider_num):
-                print(slider_bounds[s])
                 self.slider[s] = Scale(self, from_=slider_bounds[s][0], to=slider_bounds[s][1], resolution=slider_bounds[s][2], orient='horizontal',length=300, command=self.slider_event)
                 self.slider[s].grid(row =s, column = 1, sticky='nsew', padx=1, pady=1)
                 self.slider[s].focus_set()

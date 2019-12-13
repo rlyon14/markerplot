@@ -94,16 +94,16 @@ def format_smithchart(axes, lines=None, admittance=False):
     plt.xticks([],fontsize=7)
     plt.yticks([], fontsize=7)
     axes.set_title('', fontsize=7)
-    #plt.tight_layout()
+
     axes.add_line(lines[0])
     axes.add_line(lines[1])
-    if hasattr(ax, 'markers'):
+    if hasattr(ax, 'marker_ignorelines'):
         axes.marker_ignorelines.append(lines[0])
         axes.marker_ignorelines.append(lines[1])
     if admittance:
         axes.add_line(lines[2])
         axes.add_line(lines[3])
-        if hasattr(ax, 'markers'):
+        if hasattr(ax, 'marker_ignorelines'):
             axes.marker_ignorelines.append(lines[2])
             axes.marker_ignorelines.append(lines[3])
     return axes
