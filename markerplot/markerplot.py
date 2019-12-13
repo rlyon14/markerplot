@@ -17,6 +17,7 @@ class Marker(object):
         self.show_xline = False if smithchart else show_xline
         self.show_dot = show_dot
         self.xline = None
+        self.height_ylabel = 0
         self.xdisplay = xdisplay if isinstance(xdisplay, (list, np.ndarray)) else []
 
         #self.data2display = self.axes.transData.transform
@@ -65,8 +66,8 @@ class Marker(object):
             if yd==None:
                 dist = (xl - xd)**2
             else:
-                dist = (xl - xd)**2 + (yl-yd)**2	## array of distances (squared) of every point on the line from the point xd, yd
-            xidx_l, mdist_l = np.argmin(dist), np.min(dist)   ## index and distance of the point on the line with the closest distance to xd, yd
+                dist = (xl - xd)**2 + (yl-yd)**2
+            xidx_l, mdist_l = np.argmin(dist), np.min(dist)  
             
             if mdist_l < mdist:
                 mline, xdpoint, mdist  = l, l.get_xdata()[xidx_l], mdist_l
@@ -76,62 +77,43 @@ class Marker(object):
         self.xdpoint = self.find_nearest_xdpoint(xd, yd)
         xa, ya = self.data2axes((self.xdpoint, 0))
 
+        ## vertical x line
+        boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
+        self.xline = self.axes.axvline(self.xdpoint, linewidth=0.5, color='r')
+        self.axes.marker_ignorelines.append(self.xline)
 
-        if self.show_xline:
-            boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
-            self.xline = self.axes.axvline(self.xdpoint, linewidth=0.5, color='r')
-            self.axes.marker_ignorelines.append(self.xline)
-
-            xidx = np.argmin(np.abs(self.lines[0].get_xdata()-self.xdpoint))
-            txt = self.xdisplay[xidx] if len(self.xdisplay) > 0  else '{:.3f}'.format(self.xdpoint) 
-            if (self.show_xlabel):
-                self.xtext = self.axes.text(xa, 0, txt, color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
-                xtext_dim = self.xtext.get_window_extent(self.renderer)
-
-                x1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[0]
-                x2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[0]
-
-                xlen = (x2-x1)/2
-                self.xtext.set_position((xa-xlen, 0))
+        ## x label
+        self.xtext = self.axes.text(xa, 0, '', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
         
-        self.yloc =[]
-        xloc = []
+        ## ylabels and ydots for each line
         for i, l in enumerate(self.lines):
-            xd = self.xdpoint
-            self.xidx[i] = np.argmin(np.abs(l.get_xdata()-xd))
-            xidx = self.xidx[i]
-            yd = l.get_ydata()
-            xd, yd = l.get_xdata()[xidx], l.get_ydata()[xidx]	
-            xa, ya = self.data2axes((xd, yd))
+    
             boxparams = dict(facecolor='black', edgecolor=l.get_color(), linewidth=1.6, boxstyle='round', alpha=0.7)
-            
-            if self.smithchart and len(self.xdisplay) > 0:
-                label = '{:0.3f}'.format(self.xdisplay[xidx]) if isinstance(self.xdisplay[xidx], float) else self.xdisplay[xidx]
-            else:
-                label = '{:0.3f}'.format(yd) #if self.labels[i] != None else '{:0.3f}'.format(yd)
-            self.ytext[i] = self.axes.text(xa+0.01, ya, label ,color='white', fontsize=8, transform = self.axes.transAxes, verticalalignment='center', bbox=boxparams)
-            ytext_dim = self.ytext[i].get_window_extent(self.renderer)
-            y1 = self.display2axes((ytext_dim.x0, ytext_dim.y0))[1]
-            y2 = self.display2axes((ytext_dim.x1, ytext_dim.y1))[1]
-            self.ylen = (y2-y1)*1.8
+            self.ytext[i] = self.axes.text(xa+0.01, 0, '0' ,color='white', fontsize=8, transform = self.axes.transAxes, verticalalignment='center', bbox=boxparams)
 
-            if self.xdpoint > l.get_xdata()[-1] or self.xdpoint < l.get_xdata()[0]:
-                self.ytext[i].set_visible(False)
+            self.ydot[i] = Line2D([0], [0], linewidth=10, color=l.get_color(), markersize=10)
+            self.ydot[i].set_marker('.')
+            self.ydot[i].set_linestyle(':')
+            self.axes.add_line(self.ydot[i])
+            self.axes.marker_ignorelines.append(self.ydot[i])
+            if not self.show_dot:
+                self.ydot[i].set_visible(False)
 
-            #print(ytext_dim)
-            self.yloc.append(ya)
+        ## compute height of ylabels, these should all be identical
+        ytext_dim = self.ytext[0].get_window_extent(self.renderer)
+        y1 = self.display2axes((ytext_dim.x0, ytext_dim.y0))[1]
+        y2 = self.display2axes((ytext_dim.x1, ytext_dim.y1))[1]
+        self.height_ylabel = (y2-y1)*1.8
 
-            if self.show_dot:
-                self.ydot[i] = Line2D([xd], [yd], linewidth=10, color=l.get_color(), markersize=10)
-                self.ydot[i].set_marker('.')
-                self.ydot[i].set_linestyle(':')
-                self.axes.add_line(self.ydot[i])
-                self.axes.marker_ignorelines.append(self.ydot[i])
-                if self.xdpoint > l.get_xdata()[-1] or self.xdpoint < l.get_xdata()[0]:
-                    self.ydot[i].set_visible(False)
+        ## move objects to current point
+        self.move_to_point(xd, yd)
 
-            xloc.append(xa)
-        self.space_ylabels(xloc)
+        ## set visibility
+        if not self.show_xlabel:
+            self.xlabel.set_visible(False)
+        if not self.show_xline:
+            self.xline.set_visible(False)
+
 
     def space_ylabels(self, xa):
         ylabels = list(self.ytext)
@@ -143,13 +125,13 @@ class Marker(object):
         for i, y in enumerate(yloc):
             if i >= len(yloc) -1:
                 break
-            ovl = (yloc[i+1] - self.ylen/2) - (y + self.ylen/2)
+            ovl = (yloc[i+1] - self.height_ylabel/2) - (y + self.height_ylabel/2)
 
             if ovl < 0:
                 yloc[i] -= abs(ovl)/2
                 yloc[i+1] += abs(ovl)/2
                 for j in range(i-1, -1, -1):
-                    ovl = (yloc[j+1] - self.ylen/2) - (yloc[j] + self.ylen/2)
+                    ovl = (yloc[j+1] - self.height_ylabel/2) - (yloc[j] + self.height_ylabel/2)
                     if ovl < 0:
                         yloc[j] -= abs(ovl)
 
@@ -160,31 +142,32 @@ class Marker(object):
 
     def move_to_point(self, xd, yd=None):
         self.xdpoint = self.find_nearest_xdpoint(xd, yd)
+
         for i, l in enumerate(self.lines):
             self.xidx[i] = np.argmin(np.abs(l.get_xdata()-self.xdpoint))
-        #self._move_to_xindex(self.xidx)
         
-        xd = self.xdpoint
-        xa, ya = self.data2axes((xd, 0))
-        if self.show_xline:
-            self.xline.set_xdata([xd, xd])
-            if self.show_xlabel:
-                txt = self.xdisplay[self.xidx[0]] if len(self.xdisplay) > 0  else '{:.3f}'.format(xd) 
-                self.xtext.set_text(txt)
+        ## vertical line placement
+        self.xline.set_xdata([self.xdpoint, self.xdpoint])
 
-                xtext_dim = self.xtext.get_window_extent(self.renderer)
+        xa, ya = self.data2axes((self.xdpoint, 0))
 
-                x1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[0]
-                x2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[0]
+        ## xlabel text
+        txt = self.xdisplay[self.xidx[0]] if len(self.xdisplay) > 0  else '{:.3f}'.format(self.xdpoint) 
+        self.xtext.set_text(txt)
 
-                xlen = (x2-x1)/2
+        ## xlabel placement
+        xtext_dim = self.xtext.get_window_extent(self.renderer)
+        x1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[0]
+        x2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[0]
+        xlen = (x2-x1)/2
 
-                self.xtext.set_position((xa-xlen, 0))
+        self.xtext.set_position((xa-xlen, 0))
 
-        ## TODO: create all objects regardless of settings, set visibility
         xloc =[]
         self.yloc = []
         for i, l in enumerate(self.lines):
+
+            ## turn off ylabel if ypoint is out of bounds
             if self.xdpoint > l.get_xdata()[-1] or self.xdpoint < l.get_xdata()[0]:
                 self.ytext[i].set_visible(False)
                 self.ydot[i].set_visible(False)
@@ -192,21 +175,26 @@ class Marker(object):
                 self.ytext[i].set_visible(True)
                 self.ydot[i].set_visible(True)
 
+            ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]	
-
             xa, ya = self.data2axes((xd, yd))
             self.ytext[i].set_position((xa+0.01, ya))
+            self.ydot[i].set_data([xd], [yd])
+
+            ## ylabel text
             if self.smithchart and len(self.xdisplay) > 0:
-                label = '{:0.3f}'.format(self.xdisplay[self.xidx[i]]) if isinstance(self.xdisplay[self.xidx[i]], float) else self.xdisplay[self.xidx[i]]
+                
+                if isinstance(self.xdisplay[self.xidx[i]], float):
+                    label = '{:0.3f}'.format(self.xdisplay[self.xidx[i]]) 
+                else:
+                    label = self.xdisplay[self.xidx[i]]
             else:
                 label = '{:0.3f}'.format(yd) 
-            self.yloc.append(ya)
+
             self.ytext[i].set_text(label)
             
-            if self.show_dot:
-                self.ydot[i].set_data([xd], [yd])
-            dim = self.ytext[i].get_window_extent(renderer=self.renderer)
             xloc.append(xa)
+            self.yloc.append(ya)
         
         self.space_ylabels(xloc)
 
@@ -215,45 +203,44 @@ class Marker(object):
         direction = -direction if self.xreversed else direction
         xmax, xmin = -np.inf, np.inf
         line = None
+        step_sizes = np.array([0.0]*len(self.lines), dtype='float64')
+        if direction > 0:
+            xloc = np.array([np.inf]*len(self.lines))
+        else:
+            xloc = np.array([-np.inf]*len(self.lines))
 
         for i, l in enumerate(self.lines):
-            
-            
+            xdata = l.get_xdata()
+
             if direction > 0:
-                ## find line with point furthest to the left
-                temp_x = -np.inf
-                if (self.xidx[i] +1) >= 0 and self.xidx[i] != 0:
-                    temp_x = l.get_xdata()[self.xidx[i] +1] 
+                
+                if (self.xidx[i] +1) < len(xdata):
+                    step_sizes[i] = xdata[self.xidx[i] +1] - xdata[self.xidx[i]]
+                    xloc[i] = xdata[self.xidx[i]]
 
-                if temp_x > xmax:
-                    xmax = temp_x
-                    line_idx = i
             else:
-                if (self.xidx[i] +1) < len(l.get_xdata()):
-                    temp_x = l.get_xdata()[self.xidx[i] +1] 
-
-                if temp_x < xmin:
-                    xmin = temp_x
-                    line_idx = i
-        
-
-        xdata = self.lines[line_idx].get_xdata()
-        new_xpoint = xdata[self.xidx[line_idx]]
-        if direction < 0:
-            if (self.xidx[line_idx] -1) >= 0:
-                new_xpoint = xdata[self.xidx[line_idx] -1]
+                if (self.xidx[i] -1) >= 0:
+                    step_sizes[i] = xdata[self.xidx[i]] - xdata[self.xidx[i] -1]
+                    xloc[i] = xdata[self.xidx[i]]
+    
+        step_size = np.max(step_sizes)
+        if direction > 0:
+            l_idx = np.argmin(xloc)
+            if np.min(xloc) < np.inf:
+                new_xpoint = self.lines[l_idx].get_xdata()[self.xidx[l_idx]] + step_size
+                self.move_to_point(new_xpoint)
         else:
-            if (self.xidx[line_idx] +1) < (len(xdata)):
-                new_xpoint = xdata[self.xidx[line_idx] +1]
-
-        self.move_to_point(new_xpoint)
+            l_idx = np.argmax(xloc)
+            if np.max(xloc) > -np.inf:
+                new_xpoint = self.lines[l_idx].get_xdata()[self.xidx[l_idx]] - step_size
+                self.move_to_point(new_xpoint)
 
     def remove(self):
-        if self.show_xline:
-            if self.show_xlabel:
-                self.xtext.set_visible(False)
-            idx = self.axes.lines.index(self.xline)
-            self.axes.lines.pop(idx)
+
+        self.xtext.set_visible(False)
+        idx = self.axes.lines.index(self.xline)
+        self.axes.lines.pop(idx)
+
         for i, l in enumerate(self.lines):		
             idx = self.axes.lines.index(self.ydot[i])
             self.axes.lines.pop(idx)
