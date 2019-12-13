@@ -17,8 +17,8 @@ fig.marker_enable()
 x1 = np.linspace(-2*np.pi, 2*np.pi, 100)
 x2 = np.linspace(-6*np.pi, 6*np.pi, 100)
 
-ax.plot(x2, np.sin(x2), label='sin(x)')
-ax.plot(x1, np.cos(x1), label='cox(x)')
+ax.plot(x1, np.sin(x1), label='sin(x)')
+ax.plot(x2, np.cos(x2), label='cox(x)')
 
 ## or place static markers:
 ax.marker_add(x=0)
