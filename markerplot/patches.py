@@ -29,8 +29,9 @@ def marker_add_ignoreline(self, *lines):
     lines = list(lines)
     self.marker_ignorelines += lines
     
-def marker_enable(self,  **kwargs):
-    self._eventmanager = MarkerManager(self)
+def marker_enable(self, interactive=True, linked_axes=None, **kwargs):
+    if interactive:
+        self._eventmanager = MarkerManager(self, linked_axes)
 
     default_params = dict(
         xmode=True,

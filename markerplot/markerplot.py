@@ -277,12 +277,17 @@ class Marker(object):
         return False
 
 class MarkerManager(object):
-    def __init__(self, fig):
+    def __init__(self, fig, linked_axes=None):
         self.fig = fig
+        self.linked_axes = [] if linked_axes == None else linked_axes
 
         self.move = None
         self.shift_is_held = False
-        self.active_marker = None
+        self.active_marker = {}
+        for ax in fig.axes:
+            self.active_marker[id(ax)] = None
+        for ax in self.linked_axes:
+            self.active_marker[id(ax)] = None
 
         self.cidclick = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         self.cidpress = self.fig.canvas.mpl_connect('key_press_event', self.onkey_press)
@@ -290,40 +295,88 @@ class MarkerManager(object):
         self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
 
+    def move_linked(self, xd, yd):
+        for ax in self.linked_axes:
+            active_marker = self.active_marker[id(ax)]
+            active_marker.move_to_point(xd, yd)
+
+    def add_linked(self, xd, yd):
+        for ax in self.linked_axes:
+            self.active_marker[id(ax)] = ax.marker_add(xd, yd)  
+
+    def shift_linked(self, direction):
+        for ax in self.linked_axes:
+            active_marker = self.active_marker[id(ax)]
+            active_marker.shift(direction)
+        
+    def delete_linked(self):
+        for ax in self.linked_axes:
+            self.active_marker[id(ax)] = ax.marker_delete(active_marker)
+
+    def draw_linked(self):
+        for ax in self.linked_axes:
+            fig = ax.figure
+            if fig != self.fig:
+                fig.canvas.draw()
+
+
     def get_event_marker(self, axes, event):
         for m in axes.markers:
             if m.contains_event(event):
                 return m
         return None
 
+    def get_event_axes(self, event):
+        axes = event.inaxes
+        if id(axes) in self.active_marker.keys():
+            return axes
+        else:
+            return None
+
     def onkey_release(self, event):
         if event.key == 'shift':
             self.shift_is_held = False
 
     def onkey_press(self, event):
-        axes = event.inaxes
+        axes = self.get_event_axes(event)
+        if axes == None:
+            return
 
-        if self.active_marker == None or axes == None:
+        active_marker = self.active_marker[id(axes)]
+
+        if active_marker == None:
             return
         elif event.key == 'shift':
             self.shift_is_held = True
         elif(event.key == 'left'):
-            self.active_marker.shift(-1)
+            active_marker.shift(-1)
+            self.shift_linked(-1)
         elif(event.key == 'right'):
-            self.active_marker.shift(1)
+            active_marker.shift(1)
+            self.shift_linked(1)
         elif(event.key == 'delete'):
-            self.active_marker = axes.marker_delete(self.active_marker)
+            self.active_marker[id(axes)] = axes.marker_delete(active_marker)
+            self.delete_linked()
         self.fig.canvas.draw()
+        self.draw_linked()
 
     def onmotion(self, event):
         xd = event.xdata
         yd = event.ydata
-        axes = event.inaxes
-        if axes == None or axes != self.move or self.active_marker == None:
+        axes = self.get_event_axes(event)
+
+        if axes == None:
+            return
+
+        active_marker = self.active_marker[id(axes)]
+
+        if axes != self.move or active_marker == None:
             return
         
-        self.active_marker.move_to_point(xd, yd)
+        active_marker.move_to_point(xd, yd)
+        self.move_linked(xd, yd)
         self.fig.canvas.draw()
+        self.draw_linked()
 
     def onrelease(self, event):
         self.move = None
@@ -331,22 +384,27 @@ class MarkerManager(object):
     def onclick(self, event):
         xd = event.xdata
         yd = event.ydata
-        axes = event.inaxes
+        axes = self.get_event_axes(event)
+
         if (axes == None):
             return
         self.move = axes
 
         m = self.get_event_marker(axes, event)
+        active_marker = self.active_marker[id(axes)]
 
-        if (m == None and (self.active_marker == None or self.shift_is_held == True)):
-            self.active_marker = axes.marker_add(xd, yd)
+        if (m == None and (active_marker == None or self.shift_is_held == True)):
+            self.active_marker[id(axes)] = axes.marker_add(xd, yd)  
+            self.add_linked(xd, yd)
         elif (m != None): 
-            self.active_marker = m
-        elif (self.active_marker != None):
-            self.active_marker.move_to_point(xd, yd)
+            self.active_marker[id(axes)] = m
+        elif (active_marker != None):
+            active_marker.move_to_point(xd, yd)
+            self.move_linked(xd, yd)
         else:
             return
         
         self.fig.canvas.draw()
+        self.draw_linked()
         return
 
