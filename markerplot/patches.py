@@ -10,8 +10,7 @@ import gorilla
 import matplotlib
 
 def marker_add(self, x, y=None):
-    params = self.marker_params
-    new_marker = Marker(self.axes, x, y, **params)
+    new_marker = Marker(self.axes, x, y)
     
     self.markers.append(new_marker)
     return new_marker
@@ -24,13 +23,31 @@ def marker_delete(self, marker):
 
 def marker_set_params(self, **kwargs):
     self.marker_params.update(dict(**kwargs))
+
+##TODO: fix this
+def marker_add_ignoreline(self, *lines):
+    lines = list(lines)
+    self.marker_ignorelines += lines
     
 def marker_enable(self,  **kwargs):
     self._eventmanager = MarkerManager(self)
+
+    default_params = dict(
+        xmode=True,
+        show_xline=True,
+        show_dot=True,
+        yformat=None,
+        xformat=None,
+        show_xlabel=True,
+        xreversed=False, 
+        alpha=0.7
+    )
+
+    default_params.update(kwargs)
+
     for ax in self.axes:
-        ax.grid(linewidth=0.5, linestyle='-')
         ax.markers =[]
-        ax.marker_params = dict(**kwargs)
+        ax.marker_params = default_params
         ax.marker_ignorelines = []
         
         if not hasattr(ax.__class__, 'marker_add'):
@@ -41,6 +58,9 @@ def marker_enable(self,  **kwargs):
             gorilla.apply(patch)
 
             patch = gorilla.Patch(ax.__class__, 'marker_set_params', marker_set_params)
+            gorilla.apply(patch)
+
+            patch = gorilla.Patch(ax.__class__, 'marker_add_ignoreline', marker_add_ignoreline)
             gorilla.apply(patch)
 
 patch = gorilla.Patch(matplotlib.figure.Figure, 'marker_enable', marker_enable)

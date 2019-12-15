@@ -7,19 +7,18 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 import matplotlib
 
+##TODO: fix wanrning when marker lands on nan value
 class Marker(object):
-    def __init__(self, axes, xd, yd, xmode=True, show_xline=True, show_dot=True, yformat=None, xformat=None, show_xlabel=True, xreversed=False):
+    def __init__(self, axes, xd, yd):
+        ## xmode=True, show_xline=True, show_dot=True, yformat=None, xformat=None, show_xlabel=True, xreversed=False, alpha=0.7
         
         self.axes = axes
-        self.yformat = yformat
-        self.xformat = xformat
-        self.xreversed = xreversed
-        self.show_xlabel = show_xlabel
-        self.show_xline = show_xline
-        self.show_dot = show_dot
-        self.xline = None
+        self.show_xline = axes.marker_params['show_xline']
+        self.show_xlabel = axes.marker_params['show_xlabel']
+        self.xformat = axes.marker_params['xformat']
+        self.xreversed = axes.marker_params['xreversed']
+
         self.height_ylabel = 0
-        self.xmode = xmode
 
         #self.data2display = self.axes.transData.transform
         #self.display2data = self.axes.transData.inverted().transform
@@ -30,9 +29,9 @@ class Marker(object):
 
         ## future matplotlib versions (and maybe past versions) might keep the tranform functions synced with the scale.
         ## for 3.1.1 we have to do this manually
-        def data2axes(point):
-            xscale = self.axes.get_xscale()
-            yscale = self.axes.get_yscale()
+        def data2axes(ax, point):
+            xscale = ax.get_xscale()
+            yscale = ax.get_yscale()
 
             assert xscale in scale_func, 'x-axes scale: {} not supported'.format(xscale)
             assert yscale in scale_func, 'y-axes scale: {} not supported'.format(yscale)
@@ -40,7 +39,7 @@ class Marker(object):
             xd = scale_func[xscale](point[0])
             yd = scale_func[yscale](point[1])
 
-            return self.axes.transLimits.transform((xd,yd))
+            return ax.transLimits.transform((xd,yd))
 
         self.data2axes = data2axes
         self.axes2display = self.axes.transAxes.transform
@@ -50,11 +49,20 @@ class Marker(object):
         self.ylabel_gap = self.display2axes((8,0))[0] - self.display2axes((0,0))[0]
 
         self.lines = []
-        
+
         ## keep track of all lines we want to add markers to
         for l in self.axes.lines:
             if (l not in self.axes.marker_ignorelines):
-                self.lines.append(l)
+                self.lines.append((self.axes, l))
+
+        ## get lines from any shared axes
+        ## if kwargs were supplied, add these 
+        for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
+            if ax == self.axes:
+                continue
+            for l in ax.lines:
+                if (l not in ax.marker_ignorelines):
+                    self.lines.append((ax,l))
                 
         self.ydot = [None]*len(self.lines)
         self.ytext = [None]*len(self.lines)
@@ -68,13 +76,14 @@ class Marker(object):
 
         self.create(xd, yd)
 
+    ## TODO: find nearest using axes or display coordinates, not data coordinates
     def find_nearest_xdpoint(self, xd, yd=None):
         mline, xdpoint, mdist = None, 0, np.inf
 
-        for l in self.lines:
+        for ax, l in self.lines:
             xl, yl = l.get_xdata(), l.get_ydata()
 
-            if yd==None or self.xmode:
+            if yd==None or ax.marker_params['xmode']:
                 dist = (xl - xd)**2
             else:
                 dist = (xl - xd)**2 + (yl-yd)**2
@@ -86,7 +95,6 @@ class Marker(object):
 
     def create(self, xd, yd=None):
         self.xdpoint = self.find_nearest_xdpoint(xd, yd)
-        xa, ya = self.data2axes((self.xdpoint, 0))
 
         ## vertical x line
         boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
@@ -94,20 +102,22 @@ class Marker(object):
         self.axes.marker_ignorelines.append(self.xline)
 
         ## x label
-        self.xtext = self.axes.text(xa, 0, '', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
+        self.xtext = self.axes.text(0, 0, '', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
         
         ## ylabels and ydots for each line
-        for i, l in enumerate(self.lines):
+        for i, (ax,l) in enumerate(self.lines):
     
-            boxparams = dict(facecolor='black', edgecolor=l.get_color(), linewidth=1.6, boxstyle='round', alpha=0.7)
-            self.ytext[i] = self.axes.text(xa+self.ylabel_gap, 0, '0' ,color='white', fontsize=8, transform = self.axes.transAxes, verticalalignment='center', bbox=boxparams)
+            boxparams = dict(facecolor='black', edgecolor=l.get_color(), linewidth=1.6, boxstyle='round', alpha=ax.marker_params['alpha'])
+            self.ytext[i] = ax.text(0, 0, '0' ,color='white', fontsize=8, transform = ax.transAxes, verticalalignment='center', bbox=boxparams)
 
             self.ydot[i] = Line2D([0], [0], linewidth=10, color=l.get_color(), markersize=10)
             self.ydot[i].set_marker('.')
             self.ydot[i].set_linestyle(':')
-            self.axes.add_line(self.ydot[i])
+            ax.add_line(self.ydot[i])
             self.axes.marker_ignorelines.append(self.ydot[i])
-            if not self.show_dot:
+            ax.marker_ignorelines.append(self.ydot[i])
+            
+            if not ax.marker_params['show_dot']:
                 self.ydot[i].set_visible(False)
             self.line_xbounds[i] = np.min(l.get_xdata()), np.max(l.get_xdata())
 
@@ -155,13 +165,13 @@ class Marker(object):
     def move_to_point(self, xd, yd=None):
         self.xdpoint = self.find_nearest_xdpoint(xd, yd)
 
-        for i, l in enumerate(self.lines):
+        for i, (ax,l) in enumerate(self.lines):
             self.xidx[i] = np.argmin(np.abs(l.get_xdata()-self.xdpoint))
         
         ## vertical line placement
         self.xline.set_xdata([self.xdpoint, self.xdpoint])
 
-        xa, ya = self.data2axes((self.xdpoint, 0))
+        xa, ya = self.data2axes(self.axes, (self.xdpoint, 0))
 
         ## xlabel text
         if self.xformat != None:
@@ -181,7 +191,7 @@ class Marker(object):
 
         xloc =[]
         self.yloc = []
-        for i, l in enumerate(self.lines):
+        for i, (ax,l) in enumerate(self.lines):
 
             ## turn off ylabel and dot if ypoint is out of bounds
             if (self.xdpoint > self.line_xbounds[i][1]) or (self.xdpoint < self.line_xbounds[i][0]):
@@ -194,13 +204,13 @@ class Marker(object):
             ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
 
-            xa, ya = self.data2axes((xd, yd))
+            xa, ya = self.data2axes(ax, (xd, yd))
             self.ytext[i].set_position((xa+self.ylabel_gap, ya))
             self.ydot[i].set_data([xd], [yd])
 
             ## ylabel text
-            if self.yformat != None:
-                txt = self.yformat(yd)
+            if ax.marker_params['yformat'] != None:
+                txt = ax.marker_params['yformat'](xd, yd)
             else:
                 txt = '{:0.3f}'.format(yd)
 
@@ -222,7 +232,7 @@ class Marker(object):
         else:
             xloc = np.array([-np.inf]*len(self.lines))
 
-        for i, l in enumerate(self.lines):
+        for i, (ax,l) in enumerate(self.lines):
             xdata = l.get_xdata()
 
             if direction > 0:
@@ -240,12 +250,12 @@ class Marker(object):
         if direction > 0:
             l_idx = np.argmin(xloc)
             if np.min(xloc) < np.inf:
-                new_xpoint = self.lines[l_idx].get_xdata()[self.xidx[l_idx]] + step_size
+                new_xpoint = self.lines[l_idx][1].get_xdata()[self.xidx[l_idx]] + step_size
                 self.move_to_point(new_xpoint)
         else:
             l_idx = np.argmax(xloc)
             if np.max(xloc) > -np.inf:
-                new_xpoint = self.lines[l_idx].get_xdata()[self.xidx[l_idx]] - step_size
+                new_xpoint = self.lines[l_idx][1].get_xdata()[self.xidx[l_idx]] - step_size
                 self.move_to_point(new_xpoint)
 
     def remove(self):
@@ -254,9 +264,9 @@ class Marker(object):
         idx = self.axes.lines.index(self.xline)
         self.axes.lines.pop(idx)
 
-        for i, l in enumerate(self.lines):		
-            idx = self.axes.lines.index(self.ydot[i])
-            self.axes.lines.pop(idx)
+        for i, (ax,l) in enumerate(self.lines):		
+            idx = ax.lines.index(self.ydot[i])
+            ax.lines.pop(idx)
             idx = self.ytext[i].set_visible(False)
 
     def contains_event(self, event):

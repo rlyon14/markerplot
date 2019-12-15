@@ -11,6 +11,7 @@ dir_ = Path(__file__).parent
 matplotlib.use('Qt4Agg') 
 
 fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=(10,5))
+ax.grid(linewidth=0.5, linestyle='-')
 
 ## make sure any axes you want the markers on have already been added to fig before this call
 fig.marker_enable(show_xline=False, show_xlabel=False)
