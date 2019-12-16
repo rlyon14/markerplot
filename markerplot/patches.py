@@ -24,7 +24,7 @@ def marker_delete(self, marker):
 def marker_set_params(self, **kwargs):
     self.marker_params.update(dict(**kwargs))
 
-##TODO: fix this to for single lines
+##TODO: fix this to handle single lines or lists
 def marker_add_ignoreline(self, *lines):
     lines = list(lines)
     self.marker_ignorelines += lines

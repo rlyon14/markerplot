@@ -7,10 +7,8 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 import matplotlib
 
-##TODO: fix warning when marker lands on nan value
 class Marker(object):
     def __init__(self, axes, xd, yd):
-        ## xmode=True, show_xline=True, show_dot=True, yformat=None, xformat=None, show_xlabel=True, xreversed=False, alpha=0.7
         
         self.axes = axes
         self.show_xline = axes.marker_params['show_xline']
@@ -135,7 +133,7 @@ class Marker(object):
         if not self.show_xline:
             self.xline.set_visible(False)
 
-
+    ## TODO: space over x and y dimensions
     def space_ylabels(self, xa):
         ylabels = list(self.ytext)
         zipped = zip(self.yloc, ylabels, xa)
