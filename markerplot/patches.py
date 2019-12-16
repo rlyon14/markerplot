@@ -24,15 +24,17 @@ def marker_delete(self, marker):
 def marker_set_params(self, **kwargs):
     self.marker_params.update(dict(**kwargs))
 
-##TODO: fix this to handle single lines or lists
-def marker_add_ignoreline(self, *lines):
+def marker_ignore(self, *lines):
     lines = list(lines)
     self.marker_ignorelines += lines
 
-##TODO: fix this to for multiple axes, and check that axes isn't added twice
-def marker_link(self, axes):
-    self.marker_linked_axes.append(axes)
-    axes.marker_linked_axes.append(self)
+def marker_link(self, *axes):
+    axes = list(axes)
+    for ax in axes:
+        if ax in self.marker_linked_axes:
+            continue
+        self.marker_linked_axes.append(ax)
+        ax.marker_linked_axes.append(self)
     
 def marker_enable(self, interactive=True, top_axes=None, **kwargs):
     if interactive:
@@ -68,7 +70,7 @@ def marker_enable(self, interactive=True, top_axes=None, **kwargs):
             patch = gorilla.Patch(ax.__class__, 'marker_set_params', marker_set_params)
             gorilla.apply(patch)
 
-            patch = gorilla.Patch(ax.__class__, 'marker_add_ignoreline', marker_add_ignoreline)
+            patch = gorilla.Patch(ax.__class__, 'marker_ignore', marker_ignore)
             gorilla.apply(patch)
 
             patch = gorilla.Patch(ax.__class__, 'marker_link', marker_link)

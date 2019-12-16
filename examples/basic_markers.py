@@ -10,22 +10,24 @@ dir_ = Path(__file__).parent
 
 matplotlib.use('Qt4Agg') 
 
-fig, ax = plt.subplots(2, 1, constrained_layout=True, figsize=(10,5))
-ax[0].grid(linewidth=0.5, linestyle='-')
-ax[1].grid(linewidth=0.5, linestyle='-')
+fig, (ax1, ax2) = plt.subplots(2, 1, constrained_layout=True, figsize=(10,5))
+ax1.grid(linewidth=0.5, linestyle='-')
+ax2.grid(linewidth=0.5, linestyle='-')
 
-## make sure any axes you want the markers on have already been added to fig before this call
-fig.marker_enable(show_xline=True, show_xlabel=False, top_axes=None) #, linked_axes=[ax[1]])
+fig.marker_enable(show_xline=True, show_xlabel=False)
 
-ax[0].marker_link(ax[1])
+## link all markers between ax1 and ax2 (interactive only)
+ax1.marker_link(ax2)
+
 x1 = np.linspace(-2*np.pi, 2*np.pi, 100)
 x2 = np.linspace(-6*np.pi, 6*np.pi, 100)
 
-ax[0].plot(x1, np.sin(x1), label='sin(x)')
-ax[1].plot(x1, np.cos(x1), label='cox(x)')
+ax1.plot(x1, np.sin(x1), label='sin(x)')
+ax2.plot(x1, np.cos(x1), label='cos(x)')
 
 ## place static markers
 #ax.marker_add(x=0)
 
-plt.legend()
+ax1.legend()
+ax2.legend()
 plt.show()

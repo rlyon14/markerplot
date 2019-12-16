@@ -58,7 +58,7 @@ class Marker(object):
             if ax == self.axes:
                 continue
             for l in ax.lines:
-                if (l not in ax.marker_ignorelines):
+                if (l not in ax.marker_ignorelines) and (l not in self.axes.marker_ignorelines):
                     self.lines.append((ax,l))
                 
         self.ydot = [None]*len(self.lines)
@@ -280,7 +280,16 @@ class Marker(object):
 class MarkerManager(object):
     def __init__(self, fig, top_axes=None):
         self.fig = fig
-        self.top_axes = top_axes if top_axes != None else []
+
+        if top_axes == None:
+            self.top_axes = []
+        elif not isinstance(top_axes, (tuple, list, np.ndarray)):
+            self.top_axes = [top_axes]
+        else:
+            self.top_axes = top_axes
+
+        for ax in self.top_axes:
+            self.axes_to_top(ax)
 
         self.move = None
         self.shift_is_held = False 
@@ -291,6 +300,14 @@ class MarkerManager(object):
         self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
 
+    def axes_to_top(self, axes):
+        max_zorder = 0
+        for ax in axes.get_shared_x_axes().get_siblings(axes):
+            if ax.get_zorder() > max_zorder:
+                max_zorder = ax.get_zorder()
+        axes.set_zorder(max_zorder+1)
+        axes.patch.set_visible(False)
+        
     def move_linked(self, axes, xd, yd):
         axes.marker_active.move_to_point(xd, yd)
         for ax in axes.marker_linked_axes:
