@@ -51,7 +51,7 @@ def marker_enable(self, interactive=True, top_axes=None, **kwargs):
         alpha=0.7
     )
 
-    default_params.update(kwargs)
+    default_params.update(dict(**kwargs))
 
     for ax in self.axes:
         ax.markers =[]
