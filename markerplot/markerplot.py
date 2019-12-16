@@ -7,7 +7,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 import matplotlib
 
-##TODO: fix wanrning when marker lands on nan value
+##TODO: fix warning when marker lands on nan value
 class Marker(object):
     def __init__(self, axes, xd, yd):
         ## xmode=True, show_xline=True, show_dot=True, yformat=None, xformat=None, show_xlabel=True, xreversed=False, alpha=0.7
@@ -56,7 +56,6 @@ class Marker(object):
                 self.lines.append((self.axes, l))
 
         ## get lines from any shared axes
-        ## if kwargs were supplied, add these 
         for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
             if ax == self.axes:
                 continue
@@ -72,7 +71,7 @@ class Marker(object):
         self.line_xbounds = [None]*len(self.lines)
 
         if (len(self.lines) < 1):
-            raise RuntimeError('Markers cannot be added to axes with no data lines.')
+            raise RuntimeError('Markers cannot be added to axes without data lines.')
 
         self.create(xd, yd)
 
@@ -103,7 +102,7 @@ class Marker(object):
 
         ## x label
         self.xtext = self.axes.text(0, 0, '', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
-        
+
         ## ylabels and ydots for each line
         for i, (ax,l) in enumerate(self.lines):
     
@@ -192,32 +191,36 @@ class Marker(object):
         xloc =[]
         self.yloc = []
         for i, (ax,l) in enumerate(self.lines):
+            self.ytext[i].set_visible(True)
+            self.ydot[i].set_visible(True)
 
             ## turn off ylabel and dot if ypoint is out of bounds
             if (self.xdpoint > self.line_xbounds[i][1]) or (self.xdpoint < self.line_xbounds[i][0]):
                 self.ytext[i].set_visible(False)
                 self.ydot[i].set_visible(False)
-            else:
-                self.ytext[i].set_visible(True)
-                self.ydot[i].set_visible(True)
 
             ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
 
             xa, ya = self.data2axes(ax, (xd, yd))
-            self.ytext[i].set_position((xa+self.ylabel_gap, ya))
-            self.ydot[i].set_data([xd], [yd])
-
-            ## ylabel text
-            if ax.marker_params['yformat'] != None:
-                txt = ax.marker_params['yformat'](xd, yd)
-            else:
-                txt = '{:0.3f}'.format(yd)
-
-            self.ytext[i].set_text(txt)
-            
             xloc.append(xa)
             self.yloc.append(ya)
+
+            if (not np.isfinite(yd)):
+                self.ytext[i].set_visible(False)
+                self.ydot[i].set_visible(False)
+
+            else:
+                self.ytext[i].set_position((xa+self.ylabel_gap, ya))
+                self.ydot[i].set_data([xd], [yd])
+
+                ## ylabel text
+                if ax.marker_params['yformat'] != None:
+                    txt = ax.marker_params['yformat'](xd, yd)
+                else:
+                    txt = '{:0.3f}'.format(yd)
+
+                self.ytext[i].set_text(txt)
         
         self.space_ylabels(xloc)
 
@@ -277,17 +280,12 @@ class Marker(object):
         return False
 
 class MarkerManager(object):
-    def __init__(self, fig, linked_axes=None):
+    def __init__(self, fig, top_axes=None):
         self.fig = fig
-        self.linked_axes = [] if linked_axes == None else linked_axes
+        self.top_axes = top_axes if top_axes != None else []
 
         self.move = None
-        self.shift_is_held = False
-        self.active_marker = {}
-        for ax in fig.axes:
-            self.active_marker[id(ax)] = None
-        for ax in self.linked_axes:
-            self.active_marker[id(ax)] = None
+        self.shift_is_held = False 
 
         self.cidclick = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         self.cidpress = self.fig.canvas.mpl_connect('key_press_event', self.onkey_press)
@@ -295,29 +293,41 @@ class MarkerManager(object):
         self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
 
-    def move_linked(self, xd, yd):
-        for ax in self.linked_axes:
-            active_marker = self.active_marker[id(ax)]
-            active_marker.move_to_point(xd, yd)
+    def move_linked(self, axes, xd, yd):
+        axes.marker_active.move_to_point(xd, yd)
+        for ax in axes.marker_linked_axes:
+            ax.marker_active.move_to_point(xd, yd)
 
-    def add_linked(self, xd, yd):
-        for ax in self.linked_axes:
-            self.active_marker[id(ax)] = ax.marker_add(xd, yd)  
+    def add_linked(self, axes, xd, yd):
+        axes.marker_active = axes.marker_add(xd, yd)  
+        for ax in axes.marker_linked_axes:
+            ax.marker_active = ax.marker_add(xd, yd)  
 
-    def shift_linked(self, direction):
-        for ax in self.linked_axes:
-            active_marker = self.active_marker[id(ax)]
-            active_marker.shift(direction)
+    def shift_linked(self, axes, direction):
+        axes.marker_active.shift(direction)
+        for ax in axes.marker_linked_axes:
+            ax.marker_active.shift(direction)
         
-    def delete_linked(self):
-        for ax in self.linked_axes:
-            self.active_marker[id(ax)] = ax.marker_delete(active_marker)
+    def delete_linked(self, axes):
+        axes.marker_active = axes.marker_delete(axes.marker_active)
+        for ax in axes.marker_linked_axes:
+            ax.marker_active = ax.marker_delete(ax.marker_active)
+
+    def make_linked_active(self, axes, marker):
+        axes.marker_active = marker
+        idx = axes.markers.index(marker)
+        for ax in axes.marker_linked_axes:
+            ax.marker_active = ax.markers[idx]
 
     def draw_linked(self):
-        for ax in self.linked_axes:
-            fig = ax.figure
-            if fig != self.fig:
-                fig.canvas.draw()
+        self.fig.canvas.draw()
+        drawn = [self.fig]
+        for ax in self.fig.axes:
+            for l_ax in ax.marker_linked_axes:
+                fig = l_ax.figure
+                if fig not in drawn:
+                    fig.canvas.draw()
+                    drawn.append(fig)
 
 
     def get_event_marker(self, axes, event):
@@ -328,7 +338,10 @@ class MarkerManager(object):
 
     def get_event_axes(self, event):
         axes = event.inaxes
-        if id(axes) in self.active_marker.keys():
+        if axes in self.fig.axes:
+            for ax in axes.get_shared_x_axes().get_siblings(axes):
+                if (ax in self.top_axes):
+                    return ax
             return axes
         else:
             return None
@@ -342,22 +355,16 @@ class MarkerManager(object):
         if axes == None:
             return
 
-        active_marker = self.active_marker[id(axes)]
-
-        if active_marker == None:
+        if axes.marker_active == None:
             return
         elif event.key == 'shift':
             self.shift_is_held = True
         elif(event.key == 'left'):
-            active_marker.shift(-1)
-            self.shift_linked(-1)
+            self.shift_linked(axes, -1)
         elif(event.key == 'right'):
-            active_marker.shift(1)
-            self.shift_linked(1)
+            self.shift_linked(axes, 1)
         elif(event.key == 'delete'):
-            self.active_marker[id(axes)] = axes.marker_delete(active_marker)
-            self.delete_linked()
-        self.fig.canvas.draw()
+            self.delete_linked(axes)
         self.draw_linked()
 
     def onmotion(self, event):
@@ -366,45 +373,38 @@ class MarkerManager(object):
         axes = self.get_event_axes(event)
 
         if axes == None:
-            return
+            return 
 
-        active_marker = self.active_marker[id(axes)]
-
-        if axes != self.move or active_marker == None:
+        if axes != self.move or axes.marker_active == None:
             return
         
-        active_marker.move_to_point(xd, yd)
-        self.move_linked(xd, yd)
-        self.fig.canvas.draw()
+        self.move_linked(axes, xd, yd)
         self.draw_linked()
 
-    def onrelease(self, event):
-        self.move = None
-
     def onclick(self, event):
+        self.move = self.get_event_axes(event)
+
+    def onrelease(self, event):
         xd = event.xdata
         yd = event.ydata
         axes = self.get_event_axes(event)
 
         if (axes == None):
             return
-        self.move = axes
+        self.move = None
 
         m = self.get_event_marker(axes, event)
-        active_marker = self.active_marker[id(axes)]
+        active_marker = axes.marker_active
 
         if (m == None and (active_marker == None or self.shift_is_held == True)):
-            self.active_marker[id(axes)] = axes.marker_add(xd, yd)  
-            self.add_linked(xd, yd)
+            self.add_linked(axes, xd, yd)
         elif (m != None): 
-            self.active_marker[id(axes)] = m
+            self.make_linked_active(axes, m)
         elif (active_marker != None):
-            active_marker.move_to_point(xd, yd)
-            self.move_linked(xd, yd)
+            self.move_linked(axes, xd, yd)
         else:
             return
         
-        self.fig.canvas.draw()
         self.draw_linked()
         return
 

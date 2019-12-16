@@ -24,14 +24,19 @@ def marker_delete(self, marker):
 def marker_set_params(self, **kwargs):
     self.marker_params.update(dict(**kwargs))
 
-##TODO: fix this
+##TODO: fix this to for single lines
 def marker_add_ignoreline(self, *lines):
     lines = list(lines)
     self.marker_ignorelines += lines
+
+##TODO: fix this to for multiple axes, and check that axes isn't added twice
+def marker_link(self, axes):
+    self.marker_linked_axes.append(axes)
+    axes.marker_linked_axes.append(self)
     
-def marker_enable(self, interactive=True, linked_axes=None, **kwargs):
+def marker_enable(self, interactive=True, top_axes=None, **kwargs):
     if interactive:
-        self._eventmanager = MarkerManager(self, linked_axes)
+        self._eventmanager = MarkerManager(self, top_axes=top_axes)
 
     default_params = dict(
         xmode=True,
@@ -48,8 +53,10 @@ def marker_enable(self, interactive=True, linked_axes=None, **kwargs):
 
     for ax in self.axes:
         ax.markers =[]
-        ax.marker_params = default_params
+        ax.marker_params = dict(**default_params)
         ax.marker_ignorelines = []
+        ax.marker_active = None
+        ax.marker_linked_axes = []
         
         if not hasattr(ax.__class__, 'marker_add'):
             patch = gorilla.Patch(ax.__class__, 'marker_add', marker_add)
@@ -62,6 +69,9 @@ def marker_enable(self, interactive=True, linked_axes=None, **kwargs):
             gorilla.apply(patch)
 
             patch = gorilla.Patch(ax.__class__, 'marker_add_ignoreline', marker_add_ignoreline)
+            gorilla.apply(patch)
+
+            patch = gorilla.Patch(ax.__class__, 'marker_link', marker_link)
             gorilla.apply(patch)
 
 patch = gorilla.Patch(matplotlib.figure.Figure, 'marker_enable', marker_enable)
