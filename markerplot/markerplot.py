@@ -1,13 +1,14 @@
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.artist import Artist
-from matplotlib.lines import Line2D
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-import matplotlib
+
 
 class Marker(object):
+    
     def __init__(self, axes, xd, yd):
         
         self.axes = axes
@@ -427,4 +428,3 @@ class MarkerManager(object):
         
         self.draw_linked()
         return
-
