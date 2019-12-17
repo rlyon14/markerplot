@@ -335,6 +335,7 @@ class MarkerManager(object):
             ax.marker_active = ax.markers[idx]
 
     def draw_linked(self):
+        print('test')
         self.fig.canvas.draw()
         drawn = [self.fig]
         for ax in self.fig.axes:
@@ -352,6 +353,10 @@ class MarkerManager(object):
         return None
 
     def get_event_axes(self, event):
+        plt.figure(self.fig.number)
+        if plt.get_current_fig_manager().toolbar.mode != '':
+            return None
+
         axes = event.inaxes
         if axes in self.fig.axes:
             for ax in axes.get_shared_x_axes().get_siblings(axes):
