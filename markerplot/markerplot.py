@@ -305,7 +305,7 @@ class Marker(object):
 
         
         #self.axes.figure.canvas.blit(self.axes.bbox)
-
+        
         #working
         self.axes.figure.draw_artist(self.xline)
         self.axes.figure.draw_artist(self.xtext)
@@ -387,6 +387,7 @@ class MarkerManager(object):
         self.key_released_timer = None
         self.key_pressed = False
         self.sem = Semaphore()
+        self.zoom = False
 
         self.cidclick = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         self.cidpress = self.fig.canvas.mpl_connect('key_press_event', self.onkey_press)
@@ -459,6 +460,8 @@ class MarkerManager(object):
     def get_event_axes(self, event):
         plt.figure(self.fig.number)
         if plt.get_current_fig_manager().toolbar.mode != '':
+            self.zoom = True
+        if self.zoom:
             return None
 
         axes = event.inaxes
@@ -477,7 +480,7 @@ class MarkerManager(object):
 
     def onkey_release(self, event):
         self.sem.acquire()
-        print('release')
+        #print('release')
 
         
         self.key_pressed = False
@@ -487,11 +490,11 @@ class MarkerManager(object):
             self.shift_is_held = False
         self.draw_all()
         self.sem.release()
-        print('relase done')
+        #print('relase done')
 
     def onkey_press(self, event):
         self.sem.acquire()
-        print('press')
+        #print('press')
         
         if self.key_released_timer:
             self.key_released_timer.cancel()
@@ -518,7 +521,7 @@ class MarkerManager(object):
             #self.draw_all()
 
         self.sem.release()
-        print('press done')
+        #print('press done')
         #self.draw_linked(axes)
 
     def onmotion(self, event):
