@@ -109,7 +109,7 @@ class Marker(object):
         #self.draw_box_xline = self.axes.figure.canvas.copy_from_bbox(self.xline.axes.bbox)
 
         ## x label
-        self.xtext = self.axes.text(0, 0, '', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
+        self.xtext = self.axes.text(0, 0, '0', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
         #self.draw_box_xtext = self.axes.figure.canvas.copy_from_bbox(self.xtext.axes.bbox)
 
         ## ylabels and ydots for each line
@@ -137,6 +137,13 @@ class Marker(object):
         y1 = self.display2axes((ytext_dim.x0, ytext_dim.y0))[1]
         y2 = self.display2axes((ytext_dim.x1, ytext_dim.y1))[1]
         self.height_ylabel = (y2-y1)*1.8
+
+        ## compute height of xlabel
+        xtext_dim = self.xtext.get_window_extent(self.renderer)
+        y1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[1]
+        y2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[1]
+        self.height_xlabel = (y2-y1)*1.8
+        print(self.height_xlabel)
 
         ## move objects to current point
         self.move_to_point(xd, yd)
@@ -203,7 +210,7 @@ class Marker(object):
         x2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[0]
         xlen = (x2-x1)/2
 
-        self.xtext.set_position((xa-xlen, 0))
+        self.xtext.set_position((xa-xlen, self.height_xlabel/2))
 
         xloc =[]
         self.yloc = []
@@ -319,7 +326,7 @@ class Marker(object):
 
         for i, (ax,l) in enumerate(self.lines):
             self.axes.figure.canvas.restore_region(self.draw_box_ydot[i])
-            self.axes.figure.canvas.restore_region(self.draw_box_ydot[i])
+            self.axes.figure.canvas.restore_region(self.draw_box_ytext[i])
         
 
         # #working
@@ -383,7 +390,7 @@ class MarkerManager(object):
         self.last_press = [None, 0]
         self.valid_press = False
 
-        self.press_max_seconds = 0.005
+        self.press_max_seconds = 0.05
         self.key_released_timer = None
         self.key_pressed = False
         self.sem = Semaphore()
@@ -391,7 +398,7 @@ class MarkerManager(object):
 
         self.cidclick = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         self.cidpress = self.fig.canvas.mpl_connect('key_press_event', self.onkey_press)
-        self.cidbtnrelease = self.fig.canvas.mpl_connect('key_release_event', self.onkey_release_debounce)
+        self.cidbtnrelease = self.fig.canvas.mpl_connect('key_release_event', self.onkey_release)
         self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
 
@@ -479,7 +486,7 @@ class MarkerManager(object):
             self.key_released_timer.start()
 
     def onkey_release(self, event):
-        self.sem.acquire()
+        #self.sem.acquire()
         #print('release')
 
         
@@ -488,12 +495,12 @@ class MarkerManager(object):
 
         if event.key == 'shift':
             self.shift_is_held = False
-        self.draw_all()
-        self.sem.release()
+        self.draw_linked(axes)
+        #self.sem.release()
         #print('relase done')
 
     def onkey_press(self, event):
-        self.sem.acquire()
+        #self.sem.acquire()
         #print('press')
         
         if self.key_released_timer:
@@ -518,9 +525,10 @@ class MarkerManager(object):
             self.draw_linked(axes)
         elif(event.key == 'delete'):
             self.delete_linked(axes)
+            self.draw_all()
             #self.draw_all()
 
-        self.sem.release()
+        #self.sem.release()
         #print('press done')
         #self.draw_linked(axes)
 
@@ -562,5 +570,6 @@ class MarkerManager(object):
         else:
             return
         
-        self.draw_all()
+        #self.draw_all()
+        self.draw_linked(axes)
         return

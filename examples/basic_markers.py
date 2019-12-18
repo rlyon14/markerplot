@@ -8,7 +8,7 @@ import markerplot
 
 dir_ = Path(__file__).parent
 
-matplotlib.use('Qt4Agg') 
+#matplotlib.use('Qt4Agg') 
 
 fig, (ax1, ax2) = plt.subplots(2, 1, constrained_layout=True, figsize=(10,5))
 ax1.grid(linewidth=0.5, linestyle='-')
@@ -17,7 +17,7 @@ ax2.grid(linewidth=0.5, linestyle='-')
 fig.marker_enable(show_xline=True, show_xlabel=True)
 
 ## link all markers between ax1 and ax2 (interactive only)
-#ax1.marker_link(ax2)
+ax1.marker_link(ax2)
 
 x1 = np.linspace(-2*np.pi, 2*np.pi, 100)
 x2 = np.linspace(-6*np.pi, 6*np.pi, 100)
