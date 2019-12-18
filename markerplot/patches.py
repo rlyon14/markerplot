@@ -59,6 +59,7 @@ def marker_enable(self, interactive=True, top_axes=None, **kwargs):
         ax.marker_ignorelines = []
         ax.marker_active = None
         ax.marker_linked_axes = []
+        ax._draw_background = None
         
         if not hasattr(ax.__class__, 'marker_add'):
             patch = gorilla.Patch(ax.__class__, 'marker_add', marker_add)

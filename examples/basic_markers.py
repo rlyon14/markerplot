@@ -8,7 +8,7 @@ import markerplot
 
 dir_ = Path(__file__).parent
 
-#matplotlib.use('Qt4Agg') 
+matplotlib.use('Qt4Agg') 
 
 fig, (ax1, ax2) = plt.subplots(2, 1, constrained_layout=True, figsize=(10,5))
 ax1.grid(linewidth=0.5, linestyle='-')
