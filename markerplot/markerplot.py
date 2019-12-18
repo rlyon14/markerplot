@@ -104,6 +104,7 @@ class Marker(object):
 
         ## x label
         self.xtext = self.axes.text(0, 0, '0', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
+        self.xtext.set_zorder(20)
 
         ## ylabels and ydots for each line
         for i, (ax,l) in enumerate(self.lines):
@@ -120,6 +121,7 @@ class Marker(object):
             
             if not ax.marker_params['show_dot']:
                 self.ydot[i].set_visible(False)
+                self.ydot[i].set_zorder(0)
             self.line_xbounds[i] = np.min(l.get_xdata()), np.max(l.get_xdata())
 
         ## compute height of ylabels, these should all be identical
@@ -133,7 +135,6 @@ class Marker(object):
         y1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[1]
         y2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[1]
         self.height_xlabel = (y2-y1)*1.8
-        print(self.height_xlabel)
 
         ## move objects to current point
         self.move_to_point(xd, yd)
@@ -153,17 +154,24 @@ class Marker(object):
 
         yloc = list(yloc)
         for i, y in enumerate(yloc):
+            if i == 0:
+                xovl = (yloc[i] - self.height_ylabel/2) - self.height_xlabel
+                if xovl < 0:
+                    yloc[i] += abs(xovl)
+                    y = yloc[i]
+
             if i >= len(yloc) -1:
                 break
+
             ovl = (yloc[i+1] - self.height_ylabel/2) - (y + self.height_ylabel/2)
 
             if ovl < 0:
-                yloc[i] -= abs(ovl)/2
-                yloc[i+1] += abs(ovl)/2
-                for j in range(i-1, -1, -1):
-                    ovl = (yloc[j+1] - self.height_ylabel/2) - (yloc[j] + self.height_ylabel/2)
-                    if ovl < 0:
-                        yloc[j] -= abs(ovl)
+                #yloc[i] -= abs(ovl)/2
+                yloc[i+1] += abs(ovl)
+                # for j in range(i-1, -1, -1):
+                #     ovl = (yloc[j+1] - self.height_ylabel/2) - (yloc[j] + self.height_ylabel/2)
+                #     if ovl < 0:
+                #         yloc[j] -= abs(ovl)
 
         for i, y in enumerate(yloc):
             ylabels[i].set_position((xa[i]+self.ylabel_gap, y))
@@ -302,10 +310,10 @@ class Marker(object):
     ## assumes the canvas region has already been restored
     def draw(self):
         self.axes.draw_artist(self.xline)
-        self.axes.draw_artist(self.xtext)
         for i, (ax,l) in enumerate(self.lines):
             self.ydot[i].axes.draw_artist(self.ydot[i])
             self.ytext[i].axes.draw_artist(self.ytext[i])
+        self.axes.draw_artist(self.xtext)
 
         blit_axes = []
         for i, (ax,l) in enumerate(self.lines):
@@ -527,4 +535,5 @@ class MarkerManager(object):
             return
         
         self.draw_linked(axes)
+        #self.draw_all()
         return
