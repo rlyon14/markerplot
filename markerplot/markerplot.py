@@ -240,7 +240,7 @@ class Marker(object):
 
                 ## ylabel text
                 if ax.marker_params['yformat'] != None:
-                    txt = ax.marker_params['yformat'](xd, yd)
+                    txt = ax.marker_params['yformat'](xd, yd, self.xidx[i])
                 else:
                     txt = '{:0.3f}'.format(yd)
 
@@ -415,7 +415,6 @@ class MarkerManager(object):
             ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
 
     def draw_all(self):
-
         self.fig.canvas.draw()
         drawn = [self.fig]
         for ax in self.fig.axes:
