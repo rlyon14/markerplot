@@ -20,6 +20,7 @@ class Marker(object):
         self.xreversed = axes.marker_params['xreversed']
 
         self.height_ylabel = 0
+        self.width_ylabel = 0
 
         #self.data2display = self.axes.transData.transform
         #self.display2data = self.axes.transData.inverted().transform
@@ -124,16 +125,18 @@ class Marker(object):
                 self.ydot[i].set_zorder(0)
             self.line_xbounds[i] = np.min(l.get_xdata()), np.max(l.get_xdata())
 
-        ## compute height of ylabels, these should all be identical
+        ## compute height of ylabels, for now we assume the width and height are 
+        ## identical, need to fix this to allow differnt label sizes for each line.
         ytext_dim = self.ytext[0].get_window_extent(self.renderer)
-        y1 = self.display2axes((ytext_dim.x0, ytext_dim.y0))[1]
-        y2 = self.display2axes((ytext_dim.x1, ytext_dim.y1))[1]
+        x1, y1 = self.display2axes((ytext_dim.x0, ytext_dim.y0))
+        x2, y2 = self.display2axes((ytext_dim.x1, ytext_dim.y1))
+        self.width_ylabel = np.abs(x2-x1)*1.8
         self.height_ylabel = (y2-y1)*1.8
 
         ## compute height of xlabel
         xtext_dim = self.xtext.get_window_extent(self.renderer)
-        y1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[1]
-        y2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[1]
+        x1, y1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))
+        x2, y2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))
         self.height_xlabel = (y2-y1)*1.8
 
         ## move objects to current point
@@ -145,37 +148,41 @@ class Marker(object):
         if not self.show_xline:
             self.xline.set_visible(False)
 
-    ## TODO: space over x and y dimensions
-    def space_ylabels(self, xa):
+    ## space over y dimension if overlapped
+    def space_labels(self, xa, ya):
         ylabels = list(self.ytext)
-        zipped = zip(self.yloc, ylabels, xa)
+        zipped = zip(ya, ylabels, xa)
         zipped_sorted  = sorted(zipped, key=lambda x: x[0])
-        yloc, ylabels, xa = zip(*zipped_sorted)
+        yloc, ylabels, xloc = zip(*zipped_sorted)
 
         yloc = list(yloc)
         for i, y in enumerate(yloc):
+            x_label_ovl = 0
             if i == 0:
-                xovl = (yloc[i] - self.height_ylabel/2) - self.height_xlabel
-                if xovl < 0:
-                    yloc[i] += abs(xovl)
+                x_label_ovl = (yloc[i] - self.height_ylabel/2) - self.height_xlabel
+                if x_label_ovl < 0 and self.show_xlabel:
+                    yloc[i] += abs(x_label_ovl)
                     y = yloc[i]
 
             if i >= len(yloc) -1:
                 break
 
-            ovl = (yloc[i+1] - self.height_ylabel/2) - (y + self.height_ylabel/2)
+            yovl = (yloc[i+1] - self.height_ylabel/2) - (y + self.height_ylabel/2)
+            xovl = np.abs(xloc[i+1] - xloc[i])
 
-            if ovl < 0:
-                #yloc[i] -= abs(ovl)/2
-                yloc[i+1] += abs(ovl)
-                # for j in range(i-1, -1, -1):
-                #     ovl = (yloc[j+1] - self.height_ylabel/2) - (yloc[j] + self.height_ylabel/2)
-                #     if ovl < 0:
-                #         yloc[j] -= abs(ovl)
+            if (yovl < 0) and (xovl <= self.width_ylabel):
+                if x_label_ovl < 0:
+                    yloc[i+1] += abs(yovl)
+                else:
+                    yloc[i] -= abs(yovl)/2
+                    yloc[i+1] += abs(yovl)/2
+                for j in range(i-1, -1, -1):
+                    yovl = (yloc[j+1] - self.height_ylabel/2) - (yloc[j] + self.height_ylabel/2)
+                    if yovl < 0:
+                        yloc[j] -= abs(yovl)
 
         for i, y in enumerate(yloc):
-            ylabels[i].set_position((xa[i]+self.ylabel_gap, y))
-        self.yloc = yloc
+            ylabels[i].set_position((xloc[i]+self.ylabel_gap, y))
 
 
     def move_to_point(self, xd, yd=None):
@@ -205,8 +212,8 @@ class Marker(object):
 
         self.xtext.set_position((xa-xlen, self.height_xlabel/2))
 
-        xloc =[]
-        self.yloc = []
+        xloc = []
+        yloc = []
         for i, (ax,l) in enumerate(self.lines):
             self.ytext[i].set_visible(True)
             self.ydot[i].set_visible(True)
@@ -221,7 +228,7 @@ class Marker(object):
 
             xa, ya = self.data2axes(ax, (xd, yd))
             xloc.append(xa)
-            self.yloc.append(ya)
+            yloc.append(ya)
 
             if (not np.isfinite(yd)):
                 self.ytext[i].set_visible(False)
@@ -239,7 +246,7 @@ class Marker(object):
 
                 self.ytext[i].set_text(txt)
         
-        self.space_ylabels(xloc)
+        self.space_labels(xloc, yloc)
 
 
     def shift(self, direction):
