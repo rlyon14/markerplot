@@ -196,11 +196,14 @@ class Marker(object):
         if not self.index_mode:
             for i, (ax,l) in enumerate(self.lines):
                 self.xidx[i] = np.argmin(np.abs(l.get_xdata()-self.xdpoint))
+                if l == mline:
+                    self.xdpoint = l.get_xdata()[self.xidx[i]]
         else:
             if idx == None:
                 idx = np.argmin(np.abs(mline.get_xdata()-self.xdpoint))
             for i, (ax,l) in enumerate(self.lines):
                 self.xidx[i] = idx
+            self.xdpoint = mline.get_xdata()[self.xidx[0]]
         
         ## vertical line placement
         self.xline.set_xdata([self.xdpoint, self.xdpoint])
@@ -422,16 +425,22 @@ class MarkerManager(object):
     def make_linked_active(self, axes, marker):
         if axes.marker_active != None:
             axes.marker_active.set_animated(False)
+
+        for ax in axes.marker_linked_axes:
+            if ax.marker_active != None:
+                ax.marker_active.set_animated(False)
+
         axes.marker_active = marker
-        if axes.marker_active != None:
+        if (marker != None):
             axes.marker_active.set_animated(True)
             idx = axes.markers.index(axes.marker_active)
-
             for ax in axes.marker_linked_axes:
-                if ax.marker_active != None:
-                    ax.marker_active.set_animated(False)
                 ax.marker_active = ax.markers[idx]
                 ax.marker_active.set_animated(True)
+        else:
+            for ax in axes.marker_linked_axes:
+                ax.marker_active = None
+
         self.draw_all()
         axes._draw_background = axes.figure.canvas.copy_from_bbox(axes.bbox)
         for ax in axes.marker_linked_axes:
