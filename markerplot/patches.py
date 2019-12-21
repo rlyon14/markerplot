@@ -9,8 +9,8 @@ from . markerplot import MarkerManager, Marker
 import gorilla
 import matplotlib
 
-def marker_add(self, x, y=None):
-    new_marker = Marker(self.axes, x, y)
+def marker_add(self, x, y=None, idx=None):
+    new_marker = Marker(self.axes, x, y, idx)
     
     self.markers.append(new_marker)
     return new_marker
@@ -35,6 +35,7 @@ def marker_link(self, *axes):
             continue
         self.marker_linked_axes.append(ax)
         ax.marker_linked_axes.append(self)
+        ax.marker_params['index_mode'] = self.marker_params['index_mode']
     
 def marker_enable(self, interactive=True, top_axes=None, **kwargs):
     if interactive:
@@ -48,7 +49,8 @@ def marker_enable(self, interactive=True, top_axes=None, **kwargs):
         xformat=None,
         show_xlabel=True,
         xreversed=False, 
-        alpha=0.7
+        alpha=0.7,
+        index_mode=False
     )
 
     default_params.update(dict(**kwargs))
