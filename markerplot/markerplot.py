@@ -1,410 +1,577 @@
+
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes._axes import Axes
-from matplotlib.axes._subplots import SubplotBase
 from matplotlib.artist import Artist
-from matplotlib.lines import Line2D
-from datetime import datetime
 from matplotlib.figure import Figure
-import sys
-import tkinter
-from tkinter import *
-import matplotlib
+from matplotlib.lines import Line2D
+from time import time
+from threading import Timer, Semaphore
+
 
 class Marker(object):
-    def __init__(self, axes, xd, yd, showXline=True, showYdot=True, xdisplay=None, smithchart=False, show_xlabel=True):
-        self.axes = axes
-        self.smithchart = smithchart
-        self.show_xlabel = show_xlabel
-        self.showXline = False if smithchart else showXline
-        self.showYdot = showYdot
-        self.xline = None
-        self.xdisplay = xdisplay if isinstance(xdisplay, (list, np.ndarray)) else []
+    
+    def __init__(self, axes, xd, yd, idx=None):
+        
+        self.axes = axes 
 
-        self.data2display = self.axes.transData.transform
-        self.display2data = self.axes.transData.inverted().transform
-        self.data2axes = self.axes.transLimits.transform
-        self.axes2data = self.axes.transLimits.inverted().transform
+        ## marker will inherit these parameters from axes, ignoring params from linked axes
+        self.show_xline = axes.marker_params['show_xline']
+        self.show_xlabel = axes.marker_params['show_xlabel']
+        self.xformat = axes.marker_params['xformat']
+        self.xreversed = axes.marker_params['xreversed']
+        self.xmode = axes.marker_params['xmode']
+        self.index_mode = axes.marker_params['index_mode']
+
+        self.height_ylabel = 0
+        self.width_ylabel = 0
+        
+       # self.xd_dimension
+
+        #self.data2display = self.axes.transData.transform
+        #self.display2data = self.axes.transData.inverted().transform
+        #self.data2axes = self.axes.transLimits.transform
+        #self.axes2data = self.axes.transLimits.inverted().transform
+
+        scale_func = {'log': np.log10, 'linear': lambda x: x}
+
+        ## future matplotlib versions (and maybe past versions) might keep the tranform functions synced with the scale.
+        ## for 3.1.1 we have to do this manually
+        def data2axes(ax, point):
+            xscale = ax.get_xscale()
+            yscale = ax.get_yscale()
+
+            assert xscale in scale_func, 'x-axes scale: {} not supported'.format(xscale)
+            assert yscale in scale_func, 'y-axes scale: {} not supported'.format(yscale)
+
+            xd = scale_func[xscale](point[0])
+            yd = scale_func[yscale](point[1])
+
+            return ax.transLimits.transform((xd,yd))
+
+        self.data2axes = data2axes
         self.axes2display = self.axes.transAxes.transform
         self.display2axes = self.axes.transAxes.inverted().transform
 
-        #self.lines = list(self.axes._datalines)
-        self.lines = []
-        for l in self.axes.lines:
-            if (l not in self.axes._markerlines):
-                self.lines.append(l)
+        ## set ylabel_gap to 8 display units, convert to axes coordinates
+        self.ylabel_gap = self.display2axes((8,0))[0] - self.display2axes((0,0))[0]
 
+        self.lines = []
+
+        ## keep track of all lines we want to add markers to
+        for l in self.axes.lines:
+            if (l not in self.axes.marker_ignorelines):      
+                self.lines.append((self.axes, l))
+
+        ## get lines from any shared axes
+        for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
+            if ax == self.axes:
+                continue
+            for l in ax.lines:
+                if (l not in ax.marker_ignorelines) and (l not in self.axes.marker_ignorelines):
+                    self.lines.append((ax,l))
+        
         self.ydot = [None]*len(self.lines)
         self.ytext = [None]*len(self.lines)
-        self.xidx = None
+        self.xdpoint = None
+        self.xidx = [0]*len(self.lines)
         self.renderer = self.axes.figure.canvas.get_renderer()
-        self.ytext_loc = []
-        self.ytext_space = None
-        self.xlen = 0
+        self.line_xbounds = [None]*len(self.lines)
+
         if (len(self.lines) < 1):
-            raise RuntimeError()
+            raise RuntimeError('Markers cannot be added to axes without data lines.')
+        self.create(xd, yd, idx=idx)
 
-        self.createMarker(xd, yd)
+    ## TODO: find nearest using axes or display coordinates, not data coordinates
+    def find_nearest_xdpoint(self, xd, yd=None):
+        mline, xdpoint, mdist = None, 0, np.inf
 
-    def _find_xidx(self, xd, yd=None):
-        mline, xidx, mdist = None, 0, np.inf
-        if (yd == None or self.showXline):
-            mline = self.lines[0]
-            xidx = (np.abs(mline.get_xdata()-xd)).argmin()
-        else:
-            for l in self.lines:
-                xl, yl = l.get_xdata(), l.get_ydata()
+        for ax, l in self.lines:
+            xl, yl = l.get_xdata(), l.get_ydata()
 
-                dist = (xl - xd)**2 + (yl-yd)**2	## array of distances (squared) of every point on the line from the point xd, yd
-                xidx_l, mdist_l = np.argmin(dist), np.min(dist)   ## index and distance of the point on the line with the closest distance to xd, yd
-                if mdist_l < mdist:
-                    mline, xidx, mdist  = l, xidx_l, mdist_l
-        return mline, xidx
-
-    def createMarker(self, xd, yd=None):
-        #print(xd, yd)
-        mline, self.xidx = self._find_xidx(xd, yd)
-        xd, yd = mline.get_xdata()[self.xidx], mline.get_ydata()[self.xidx]	
-        xa, ya = self.data2axes((xd, yd))
-        #print(xa, ya , self.xidx)
-
-        if self.showXline:
-            boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
-            self.xline = self.axes.axvline(xd, linewidth=0.5, color='r')
-            self.axes._markerlines.append(self.xline)
-
-            txt = self.xdisplay[self.xidx] if len(self.xdisplay) > 0  else '{:.3f}'.format(xd) 
-            if (self.show_xlabel):
-                self.xtext = self.axes.text(xa, 0, txt, color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
-                xtext_dim = self.xtext.get_window_extent(self.renderer)
-
-                x1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[0]
-                x2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[0]
-                #print(x1, x2)
-                self.xlen = (x2-x1)/2
-                self.xtext.set_position((xa-self.xlen, 0))
-        
-        self.yloc =[]
-        xloc = []
-        for i, l in enumerate(self.lines):
-            xd, yd = l.get_xdata()[self.xidx], l.get_ydata()[self.xidx]	
-            xa, ya = self.data2axes((xd, yd))
-            boxparams = dict(facecolor='black', edgecolor=l.get_color(), linewidth=1.6, boxstyle='round', alpha=0.7)
-            
-            if self.smithchart and len(self.xdisplay) > 0:
-                label = '{:0.3f}'.format(self.xdisplay[self.xidx]) if isinstance(self.xdisplay[self.xidx], float) else self.xdisplay[self.xidx]
+            if yd==None or self.xmode:
+                dist = (xl - xd)**2
             else:
-                label = '{:0.3f}'.format(yd) #if self.labels[i] != None else '{:0.3f}'.format(yd)
-            self.ytext[i] = self.axes.text(xa+0.01, ya, label ,color='white', fontsize=8, transform = self.axes.transAxes, verticalalignment='center', bbox=boxparams)
-            ytext_dim = self.ytext[i].get_window_extent(self.renderer)
-            y1 = self.display2axes((ytext_dim.x0, ytext_dim.y0))[1]
-            y2 = self.display2axes((ytext_dim.x1, ytext_dim.y1))[1]
-            self.ylen = (y2-y1)*1.8
+                dist = (xl - xd)**2 + (yl-yd)**2
+            xidx_l, mdist_l = np.argmin(dist), np.min(dist)  
+            
+            if mdist_l < mdist:
+                mline, xdpoint, mdist  = l, l.get_xdata()[xidx_l], mdist_l
+        return mline, xdpoint
 
-            #print(ytext_dim)
-            self.yloc.append(ya)
+    def create(self, xd, yd=None, idx=None):
+        
+        mline, self.xdpoint = self.find_nearest_xdpoint(xd, yd)
 
-            if self.showYdot:
-                self.ydot[i] = Line2D([xd], [yd], linewidth=10, color=l.get_color(), markersize=10)
-                self.ydot[i].set_marker('.')
-                self.ydot[i].set_linestyle(':')
-                self.axes.add_line(self.ydot[i])
-                self.axes._markerlines.append(self.ydot[i])
+        ## vertical x line
+        boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
+        self.xline = self.axes.axvline(self.xdpoint, linewidth=0.5, color='r')
+        self.axes.marker_ignorelines.append(self.xline)
 
-            xloc.append(xa)
-        self.space_ylabels(xloc)
+        ## x label
+        self.xtext = self.axes.text(0, 0, '0', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
+        self.xtext.set_zorder(20)
 
-    def space_ylabels(self, xa):
+        ## ylabels and ydots for each line
+        for i, (ax,l) in enumerate(self.lines):
+    
+            boxparams = dict(facecolor='black', edgecolor=l.get_color(), linewidth=1.6, boxstyle='round', alpha=ax.marker_params['alpha'])
+            self.ytext[i] = ax.text(0, 0, '0' ,color='white', fontsize=8, transform = ax.transAxes, verticalalignment='center', bbox=boxparams)
+
+            self.ydot[i] = Line2D([0], [0], linewidth=10, color=l.get_color(), markersize=10)
+            self.ydot[i].set_marker('.')
+            self.ydot[i].set_linestyle(':')
+            ax.add_line(self.ydot[i])
+            self.axes.marker_ignorelines.append(self.ydot[i])
+            ax.marker_ignorelines.append(self.ydot[i])
+            
+            if not ax.marker_params['show_dot']:
+                self.ydot[i].set_visible(False)
+                self.ydot[i].set_zorder(0)
+            self.line_xbounds[i] = np.min(l.get_xdata()), np.max(l.get_xdata())
+
+        ## compute height of ylabels, for now we assume the width and height are 
+        ## identical, need to fix this to allow differnt label sizes for each line.
+        ytext_dim = self.ytext[0].get_window_extent(self.renderer)
+        x1, y1 = self.display2axes((ytext_dim.x0, ytext_dim.y0))
+        x2, y2 = self.display2axes((ytext_dim.x1, ytext_dim.y1))
+        self.width_ylabel = np.abs(x2-x1)*1.8
+        self.height_ylabel = (y2-y1)*1.8
+
+        ## compute height of xlabel
+        xtext_dim = self.xtext.get_window_extent(self.renderer)
+        x1, y1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))
+        x2, y2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))
+        self.height_xlabel = (y2-y1)*1.8
+
+        ## move objects to current point
+        self.move_to_point(xd, yd, idx=idx)
+
+        ## set visibility
+        if not self.show_xlabel:
+            self.xtext.set_visible(False)
+        if not self.show_xline:
+            self.xline.set_visible(False)
+
+    ## space over y dimension if overlapped
+    def space_labels(self, xa, ya):
         ylabels = list(self.ytext)
-        zipped = zip(self.yloc, ylabels, xa)
+        zipped = zip(ya, ylabels, xa)
         zipped_sorted  = sorted(zipped, key=lambda x: x[0])
-        yloc, ylabels, xa = zip(*zipped_sorted)
+        yloc, ylabels, xloc = zip(*zipped_sorted)
 
         yloc = list(yloc)
         for i, y in enumerate(yloc):
+            x_label_ovl = 0
+            if i == 0:
+                x_label_ovl = (yloc[i] - self.height_ylabel/2) - self.height_xlabel
+                if x_label_ovl < 0 and self.show_xlabel:
+                    yloc[i] += abs(x_label_ovl)
+                    y = yloc[i]
+
             if i >= len(yloc) -1:
                 break
-            ovl = (yloc[i+1] - self.ylen/2) - (y + self.ylen/2)
-            if ovl < 0:
-                yloc[i] -= abs(ovl)/2
-                yloc[i+1] += abs(ovl)/2
+
+            yovl = (yloc[i+1] - self.height_ylabel/2) - (y + self.height_ylabel/2)
+            xovl = -1 #np.abs(xloc[i+1] - xloc[i])
+
+            if (yovl < 0) and (xovl <= self.width_ylabel):
+                if x_label_ovl < 0:
+                    yloc[i+1] += abs(yovl)
+                else:
+                    yloc[i] -= abs(yovl)/2
+                    yloc[i+1] += abs(yovl)/2
                 for j in range(i-1, -1, -1):
-                    ovl = (yloc[j+1] - self.ylen/2) - (yloc[j] + self.ylen/2)
-                    if ovl < 0:
-                        yloc[j] -= abs(ovl)
+                    yovl = (yloc[j+1] - self.height_ylabel/2) - (yloc[j] + self.height_ylabel/2)
+                    if yovl < 0:
+                        yloc[j] -= abs(yovl)
 
         for i, y in enumerate(yloc):
-            ylabels[i].set_position((xa[i]+0.01, y))
-        self.yloc = yloc
+            ylabels[i].set_position((xloc[i]+self.ylabel_gap, y))
 
-    def moveToIdx(self, xidx):
-        self.xidx = xidx
-        xd = self.lines[0].get_xdata()[self.xidx]
-        xa, ya = self.data2axes((xd, 0))
-        if self.showXline:
-            self.xline.set_xdata([xd, xd])
-            if self.show_xlabel:
-                self.xtext.set_position((xa-self.xlen, 0))
-                txt = self.xdisplay[self.xidx] if len(self.xdisplay) > 0  else '{:.3f}'.format(xd) 
-                self.xtext.set_text(txt)
 
-        self.yloc = []
-        xloc = []
-        for i, l in enumerate(self.lines):
-            xd, yd = l.get_xdata()[self.xidx], l.get_ydata()[self.xidx]	
-            xa, ya = self.data2axes((xd, yd))
-            self.ytext[i].set_position((xa+0.01, ya))
-            if self.smithchart and len(self.xdisplay) > 0:
-                label = '{:0.3f}'.format(self.xdisplay[self.xidx]) if isinstance(self.xdisplay[self.xidx], float) else self.xdisplay[self.xidx]
-            else:
-                label = '{:0.3f}'.format(yd) #if self.labels[i] != None else '{:0.3f}'.format(yd)
-            self.yloc.append(ya)
-            self.ytext[i].set_text(label)
-            if self.showYdot:
-                self.ydot[i].set_data([xd], [yd])
-            dim = self.ytext[i].get_window_extent(renderer=self.renderer)
-            xloc.append(xa)
+    def move_to_point(self, xd, yd=None, idx=None):
+        mline, self.xdpoint = self.find_nearest_xdpoint(xd, yd)
+
+        if not self.index_mode:
+            for i, (ax,l) in enumerate(self.lines):
+                self.xidx[i] = np.argmin(np.abs(l.get_xdata()-self.xdpoint))
+                if l == mline:
+                    self.xdpoint = l.get_xdata()[self.xidx[i]]
+        else:
+            if idx == None:
+                idx = np.argmin(np.abs(mline.get_xdata()-self.xdpoint))
+            for i, (ax,l) in enumerate(self.lines):
+                self.xidx[i] = idx
+            self.xdpoint = mline.get_xdata()[self.xidx[0]]
         
-        self.space_ylabels(xloc)
+        ## vertical line placement
+        self.xline.set_xdata([self.xdpoint, self.xdpoint])
 
-    def move_to_point(self, xd, yd):
-        self.mline, self.xidx = self._find_xidx(xd, yd)
-        self.moveToIdx(self.xidx)
+        xa, ya = self.data2axes(self.axes, (self.xdpoint, 0))
 
-    def shiftMarker(self, direction):
-        xlen = len(self.lines[0].get_xdata())
-        nxidx = self.xidx -1 if direction else self.xidx +1
-        if (nxidx >= xlen):
-            nxidx = xlen-1
-        elif (nxidx <= 0):
-            nxidx = 0
-        self.xidx = nxidx
+        ## xlabel text
+        if self.xformat != None:
+            txt = self.xformat(self.xdpoint)
+        else:
+            txt = '{:.3f}'.format(self.xdpoint) 
 
-        self.moveToIdx(self.xidx)
+        self.xtext.set_text(txt)
+
+        ## xlabel placement
+        xtext_dim = self.xtext.get_window_extent(self.renderer)
+        x1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[0]
+        x2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[0]
+        xlen = (x2-x1)/2
+
+        self.xtext.set_position((xa-xlen, self.height_xlabel/2))
+
+        xloc = []
+        yloc = []
+        for i, (ax,l) in enumerate(self.lines):
+            self.ytext[i].set_visible(True)
+            self.ydot[i].set_visible(True)
+
+            if not self.index_mode:
+                ## turn off ylabel and dot if ypoint is out of bounds
+                if (self.xdpoint > self.line_xbounds[i][1]) or (self.xdpoint < self.line_xbounds[i][0]):
+                    self.ytext[i].set_visible(False)
+                    self.ydot[i].set_visible(False)
+
+            ## ylabel and dot position
+            xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
+
+            xa, ya = self.data2axes(ax, (xd, yd))
+            xloc.append(xa)
+            yloc.append(ya)
+
+            if (not np.isfinite(yd)):
+                self.ytext[i].set_visible(False)
+                self.ydot[i].set_visible(False)
+
+            else:
+                self.ytext[i].set_position((xa+self.ylabel_gap, ya))
+                self.ydot[i].set_data([xd], [yd])
+
+                ## ylabel text
+                if ax.marker_params['yformat'] != None:
+                    txt = ax.marker_params['yformat'](xd, yd, self.xidx[i])
+                else:
+                    txt = '{:0.3f}'.format(yd)
+
+                self.ytext[i].set_text(txt)
+        
+        self.space_labels(xloc, yloc)
+
+
+    def shift(self, direction):
+        direction = -direction if self.xreversed else direction
+        xmax, xmin = -np.inf, np.inf
+
+        if self.index_mode:
+            xlen = len(self.lines[0][1].get_xdata())
+            nxidx = self.xidx[0] -1 if direction < 0 else self.xidx[0] +1
+            if (nxidx >= xlen):
+                nxidx = xlen-1
+            elif (nxidx <= 0):
+                nxidx = 0
+            self.move_to_point(self.lines[0][1].get_xdata()[nxidx])
+            return
+
+        line = None
+        step_sizes = np.array([0.0]*len(self.lines), dtype='float64')
+        if direction > 0:
+            xloc = np.array([np.inf]*len(self.lines))
+        else:
+            xloc = np.array([-np.inf]*len(self.lines))
+
+        for i, (ax,l) in enumerate(self.lines):
+            xdata = l.get_xdata()
+
+            if direction > 0:
+                
+                if (self.xidx[i] +1) < len(xdata):
+                    step_sizes[i] = xdata[self.xidx[i] +1] - xdata[self.xidx[i]]
+                    xloc[i] = xdata[self.xidx[i]]
+
+            else:
+                if (self.xidx[i] -1) >= 0:
+                    step_sizes[i] = xdata[self.xidx[i]] - xdata[self.xidx[i] -1]
+                    xloc[i] = xdata[self.xidx[i]]
+    
+        step_size = np.max(step_sizes)
+        if direction > 0:
+            l_idx = np.argmin(xloc)
+            if np.min(xloc) < np.inf:
+                new_xpoint = self.lines[l_idx][1].get_xdata()[self.xidx[l_idx]] + step_size
+                self.move_to_point(new_xpoint)
+        else:
+            l_idx = np.argmax(xloc)
+            if np.max(xloc) > -np.inf:
+                new_xpoint = self.lines[l_idx][1].get_xdata()[self.xidx[l_idx]] - step_size
+                self.move_to_point(new_xpoint)
 
     def remove(self):
-        if self.showXline:
-            if self.show_xlabel:
-                self.xtext.set_visible(False)
-            idx = self.axes.lines.index(self.xline)
-            self.axes.lines.pop(idx)
-        for i, l in enumerate(self.lines):		
-            idx = self.axes.lines.index(self.ydot[i])
-            self.axes.lines.pop(idx)
+
+        self.xtext.set_visible(False)
+        idx = self.axes.lines.index(self.xline)
+        self.axes.lines.pop(idx)
+
+        for i, (ax,l) in enumerate(self.lines):		
+            idx = ax.lines.index(self.ydot[i])
+            ax.lines.pop(idx)
             idx = self.ytext[i].set_visible(False)
 
     def contains_event(self, event):
+        contains, attrd = self.xtext.contains(event)
+        if (contains):
+            return True
+            
         for ym in self.ytext:
             contains, attrd = ym.contains(event)
             if (contains):
                 return True
         return False
 
+    def set_animated(self, state):
+        self.xline.set_animated(state)
+        self.xtext.set_animated(state)
+        for i, (ax,l) in enumerate(self.lines):
+            self.ydot[i].set_animated(state)
+            self.ytext[i].set_animated(state)
 
-class MarkerPlot(object):
-    def __init__(self, nrow=1 , ncolumn=1, figsize=None, xreversed=False, xDisplay = None, smithchart=False, aspect=None, show_xlabel=True):
-        self.smithchart = smithchart
-        self.xDisplay = xDisplay
-        self.show_xlabel = show_xlabel
-        self.xreversed = xreversed
-        if (figsize == None):
-            figsize = (10,5)
-        self.fig, axes = plt.subplots(nrow, ncolumn, constrained_layout=True, figsize=figsize)
-        self.axes = np.array([axes]).flatten()
-        self.markers = {}
-        for a in self.axes:
-            a.grid(linewidth=0.5, linestyle='-')
-            a._markerlines = []
-            self.markers[id(a)] = []
+    ## assumes the canvas region has already been restored
+    def draw(self):
+        self.axes.draw_artist(self.xline)
+        for i, (ax,l) in enumerate(self.lines):
+            self.ydot[i].axes.draw_artist(self.ydot[i])
+            self.ytext[i].axes.draw_artist(self.ytext[i])
+        self.axes.draw_artist(self.xtext)
 
-        self.renderer = self.fig.canvas.get_renderer()
+        blit_axes = []
+        for i, (ax,l) in enumerate(self.lines):
+            if ax in blit_axes: continue
+            ax.figure.canvas.blit(ax.bbox)
+
+
+class MarkerManager(object):
+    def __init__(self, fig, top_axes=None):
+        self.fig = fig
+
+        if top_axes == None:
+            self.top_axes = []
+        elif not isinstance(top_axes, (tuple, list, np.ndarray)):
+            self.top_axes = [top_axes]
+        else:
+            self.top_axes = top_axes
+
+        for ax in self.top_axes:
+            self.axes_to_top(ax)
+
         self.move = None
-        self.active_marker = None
-        self.xdisplay = None
-        
-        self.shift_is_held = False
-        self.active_marker = None
-        #matplotlib.use('Qt4Agg')
+        self.shift_is_held = False 
+        self.last_release = [None, 0]
+        self.last_press = [None, 0]
+        self.valid_press = False
+
+        self.press_max_seconds = 0.05
+        self.key_released_timer = None
+        self.key_pressed = False
+        self.zoom = False
+
         self.cidclick = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         self.cidpress = self.fig.canvas.mpl_connect('key_press_event', self.onkey_press)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('key_release_event', self.onkey_release)
         self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
 
-    def __getitem__(self, key):
-        return self.axes[key]
+    def axes_to_top(self, axes):
+        max_zorder = 0
+        for ax in axes.get_shared_x_axes().get_siblings(axes):
+            if ax.get_zorder() > max_zorder:
+                max_zorder = ax.get_zorder()
+        axes.set_zorder(max_zorder+1)
+        axes.patch.set_visible(False)
+        
+    def move_linked(self, axes, xd, yd):
+        axes.marker_active.move_to_point(xd, yd)
+        for ax in axes.marker_linked_axes:
+            ax.marker_active.move_to_point(xd, yd, idx=axes.marker_active.xidx[0])
 
-    def plot(self, xdata, ydata, axes=None, **kwargs):
-        if (axes == None):
-            axes = self.axes[0]
-        line = axes.plot(xdata, ydata, **kwargs)
-        axes.legend()
-        return line
+    def add_linked(self, axes, xd, yd):
+        marker = axes.marker_add(xd, yd)  
+        for ax in axes.marker_linked_axes:
+            ax.marker_add(xd, yd, idx=marker.xidx[0])  
 
-    def add_marker(self, axes, xd, yd=None):
-        self.active_marker = Marker(axes, xd, yd, smithchart=self.smithchart, xdisplay=self.xDisplay, show_xlabel=self.show_xlabel)
-        self.markers[id(axes)].append(self.active_marker)
+        self.make_linked_active(axes, marker)
 
-    def move_marker(self, xd, yd):
-        if (self.active_marker == None): return
-        self.active_marker.move_to_point(xd, yd)
+    def shift_linked(self, axes, direction):
+        axes.marker_active.shift(direction)
+        for ax in axes.marker_linked_axes:
+            ax.marker_active.shift(direction)
+        
+    def delete_linked(self, axes):
+        new_marker = axes.marker_delete(axes.marker_active)
+        for ax in axes.marker_linked_axes:
+            ax.marker_delete(ax.marker_active)
+
+        self.make_linked_active(axes, new_marker)
+
+        if axes.marker_active != None:
+            axes.marker_active.draw()
+            for ax in axes.marker_linked_axes:
+                ax.marker_active.draw()
+
+    def make_linked_active(self, axes, marker):
+        if axes.marker_active != None:
+            axes.marker_active.set_animated(False)
+
+        for ax in axes.marker_linked_axes:
+            if ax.marker_active != None:
+                ax.marker_active.set_animated(False)
+
+        axes.marker_active = marker
+        if (marker != None):
+            axes.marker_active.set_animated(True)
+            idx = axes.markers.index(axes.marker_active)
+            for ax in axes.marker_linked_axes:
+                ax.marker_active = ax.markers[idx]
+                ax.marker_active.set_animated(True)
+        else:
+            for ax in axes.marker_linked_axes:
+                ax.marker_active = None
+
+        self.draw_all()
+        axes._draw_background = axes.figure.canvas.copy_from_bbox(axes.bbox)
+        for ax in axes.marker_linked_axes:
+            ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
+
+    def draw_all(self):
+        self.fig.canvas.draw()
+        drawn = [self.fig]
+        for ax in self.fig.axes:
+            ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
+            for l_ax in ax.marker_linked_axes:
+                fig = l_ax.figure
+                l_ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
+                if fig not in drawn:
+                    fig.canvas.draw()
+                    drawn.append(fig)
+
+    def draw_linked(self, axes):
+        ## set active marker on each axes to animated
+        axes.figure.canvas.restore_region(axes._draw_background)
+        axes.marker_active.draw()
+        for ax in axes.marker_linked_axes:
+            ax.figure.canvas.restore_region(ax._draw_background)
+            ax.marker_active.draw()
+
 
     def get_event_marker(self, axes, event):
-        for m in self.markers[id(axes)]:
+        for m in axes.markers:
             if m.contains_event(event):
                 return m
         return None
 
-    def shiftMarker(self, direction):
-        if (self.activeMarker == None): return
-        self.activeMarker.shiftMarker(direction)
+    def get_event_axes(self, event):
+        plt.figure(self.fig.number)
+        if plt.get_current_fig_manager().toolbar.mode != '':
+            self.zoom = True
+        if self.zoom:
+            return None
 
-    def deleteMarker(self):
-        if (self.active_marker == None): return
-        idx = self.markers[id(self.active_marker.axes)].index(self.active_marker)
-        self.active_marker.remove()
-        self.markers[id(self.active_marker.axes)].pop(idx)
-        self.active_marker = self.markers[id(self.active_marker.axes)][-1] if len(self.markers[id(self.active_marker.axes)]) > 0 else None
+        axes = event.inaxes
+        if axes in self.fig.axes:
+            for ax in axes.get_shared_x_axes().get_siblings(axes):
+                if (ax in self.top_axes):
+                    return ax
+            return axes
+        else:
+            return None
 
-    def savefig(self, *args, **kwargs):
-        self.figure.savefig(*args, **kwargs)
+    def onkey_release_debounce(self, event):
+        if self.key_pressed:
+            self.key_released_timer = Timer(self.press_max_seconds, self.onkey_release, [event])
+            self.key_released_timer.start()
 
     def onkey_release(self, event):
+
+        self.key_pressed = False
+        axes = self.get_event_axes(event)
+
         if event.key == 'shift':
             self.shift_is_held = False
 
     def onkey_press(self, event):
-        if self.active_marker == None:
+        
+        if self.key_released_timer:
+            self.key_released_timer.cancel()
+            self.key_released_timer = None
+
+        self.key_pressed = True
+
+        axes = self.get_event_axes(event)
+        if axes == None:
+            return
+
+        if axes.marker_active == None:
             return
         elif event.key == 'shift':
             self.shift_is_held = True
         elif(event.key == 'left'):
-            self.active_marker.shiftMarker(False) if self.xreversed else self.active_marker.shiftMarker(True)
+            self.shift_linked(axes, -1)
+            self.draw_linked(axes)
         elif(event.key == 'right'):
-            self.active_marker.shiftMarker(True) if self.xreversed else self.active_marker.shiftMarker(False)
+            self.shift_linked(axes, 1)
+            self.draw_linked(axes)
         elif(event.key == 'delete'):
-            self.deleteMarker()
-        #plt.tight_layout()
-        self.fig.canvas.draw()
+            self.delete_linked(axes)
 
     def onmotion(self, event):
         xd = event.xdata
         yd = event.ydata
-        axes = event.inaxes
-        if axes == None or axes != self.move:
+        axes = self.get_event_axes(event)
+
+        if axes == None:
+            return 
+
+        if axes != self.move or axes.marker_active == None:
             return
         
-        self.move_marker(xd, yd)
-        self.fig.canvas.draw()
-
-    def onrelease(self, event):
-        self.move = None
+        self.move_linked(axes, xd, yd)
+        self.draw_linked(axes)
 
     def onclick(self, event):
+        axes = self.get_event_axes(event)
+        self.move = axes
+        if self.move == None:
+            return
+        m = self.get_event_marker(axes, event)
+        if (m != None and axes.marker_active != m): 
+            self.make_linked_active(axes, m)
+
+    def onrelease(self, event):
         xd = event.xdata
         yd = event.ydata
-        axes = event.inaxes
+        axes = self.get_event_axes(event)
+        
+
         if (axes == None):
             return
-        self.move = axes
+        self.move = None
 
         m = self.get_event_marker(axes, event)
+        active_marker = axes.marker_active
 
-        if (m == None and (self.active_marker == None or self.shift_is_held == True)):
-            self.add_marker(axes, xd, yd)
+        if (m == None and (active_marker == None or self.shift_is_held == True)):
+            self.add_linked(axes, xd, yd)
         elif (m != None): 
-            self.active_marker = m
-        elif (self.active_marker != None):
-            self.active_marker.move_to_point(xd, yd)
+            self.make_linked_active(axes, m)
+        elif (active_marker != None):
+            self.move_linked(axes, xd, yd)
         else:
             return
         
-
-        self.fig.canvas.draw()
+        self.draw_linked(axes)
+        #self.draw_all()
         return
-
-    def show(self):
-        plt.show()
-
-
-def interactive_plot(update_func, slider_num=1, slider_bounds=None, slider_names=None, title='', step_size=0.1):
-    """ init_func should return the matplotlib line that will be updated.
-        update_func takes the line (in case you want to pull the current line data)
-        and new value as parameters and should return the x and y data of the updated line
-    """
-    if slider_bounds == None:
-        slider_bounds = [(0,1, 0.1)]*slider_num
-
-    print(slider_bounds)
-    class Window(Frame):
-        def __init__(self, master=None):
-            self.slider_num = slider_num
-            self.update_func = update_func
-            # parameters that you want to send through the Frame class. 
-            Frame.__init__(self, master)   
-
-            self.master = master
-            self.init_window()
-
-            plt.ion()
-            plt.show(block=False)
-
-            self.grid(column=2,row=self.slider_num, sticky=(N,W,E,S) )
-            self.columnconfigure(2, weight = 1)
-            self.rowconfigure(self.slider_num, weight = 1)
-            self.pack(pady = 20, padx = 20)
-
-        #Creation of init_window
-        def init_window(self):
-            self.master.title(title)
-            # allowing the widget to take the full space of the root window
-            self.pack(fill=BOTH, expand=1)
-
-            self.slider = [None]*self.slider_num
-            for s in range(self.slider_num):
-                print(slider_bounds[s])
-                self.slider[s] = Scale(self, from_=slider_bounds[s][0], to=slider_bounds[s][1], resolution=slider_bounds[s][2], orient='horizontal',length=300, command=self.slider_event)
-                self.slider[s].grid(row =s, column = 1, sticky='nsew', padx=1, pady=1)
-                self.slider[s].focus_set()
-            if slider_names != None:
-                for i, n in enumerate(slider_names):
-                    l = Label(self, text=n)
-                    l.grid(row =i, column = 0, sticky='nsew', padx=1, pady=1)
-
-            self.slider_event()
-            
-            #slider.bind('<KeyRelease>', self.onKeyPress)
-            #self.valuelabel = Label(self, text="", width=20, anchor='w')
-            #self.valuelabel.grid(row = 1, column = 0, padx=0)
-
-        def slider_event(self, *args):
-            #self.valuelabel['text'] = str(val)
-            vals = [None]*self.slider_num
-            for s in range(self.slider_num):
-                vals[s] = self.slider[s].get()
-            self.update_func(*vals)
-            #self.update_line.set_data(xdata, ydata)
-            #self.update_line.axes.figure.canvas.draw()
-        
-        def onKeyPress(self, event):
-            slider = self.focus_get()
-            if event.keysym == 'Left' or event.keysym == 'Right':
-                self.slider_event(self.slider.get()+self.step_size)
-            #print('Got key press:', event.keysym)
-            
-    root = Tk()
-    #creation of an instance
-    app = Window(root)
-    root.mainloop()  
-
-if __name__ == "__main__":
-    matplotlib.use('Qt4Agg') 
-    p = MarkerPlot(1,1) 
-    p.plot(np.arange(10), np.arange(10), label='test1')
-    p.plot(np.arange(10), np.arange(10), label='test2')
-    p.plot(np.arange(10), np.arange(10), label='test3')
-    p.plot(np.arange(10), np.arange(10), label='test4')
-    p.axes[0].plot(np.arange(10), np.arange(10)-3, label='test4')
-    #p.add_marker(p.axes[0], 5, 0)
-    plt.show()
-

@@ -79,6 +79,7 @@ def smithcircles(values, npoints = 5001):
 def format_smithchart(axes, lines=None, admittance=False):
     if lines == None:
         lines = [2, 1, 0.5, 0.2, 0]
+
     plt.sca(axes)
     axes.set_aspect('equal')
     axes.spines['right'].set_color('none')
@@ -93,14 +94,16 @@ def format_smithchart(axes, lines=None, admittance=False):
     plt.xticks([],fontsize=7)
     plt.yticks([], fontsize=7)
     axes.set_title('', fontsize=7)
-    #plt.tight_layout()
+
     axes.add_line(lines[0])
     axes.add_line(lines[1])
-    axes._markerlines.append(lines[0])
-    axes._markerlines.append(lines[1])
+    if hasattr(axes, 'marker_ignorelines'):
+        axes.marker_ignorelines.append(lines[0])
+        axes.marker_ignorelines.append(lines[1])
     if admittance:
         axes.add_line(lines[2])
         axes.add_line(lines[3])
-        axes._markerlines.append(lines[2])
-        axes._markerlines.append(lines[3])
+        if hasattr(axes, 'marker_ignorelines'):
+            axes.marker_ignorelines.append(lines[2])
+            axes.marker_ignorelines.append(lines[3])
     return axes
