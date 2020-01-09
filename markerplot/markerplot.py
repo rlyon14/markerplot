@@ -54,7 +54,7 @@ class Marker(object):
         self.display2axes = self.axes.transAxes.inverted().transform
 
         ## set ylabel_gap to 8 display units, convert to axes coordinates
-        self.ylabel_gap = self.display2axes((8,0))[0] - self.display2axes((0,0))[0]
+        self.ylabel_xgap = self.display2axes((8,0))[0] - self.display2axes((0,0))[0]
 
         self.lines = []
 
@@ -136,7 +136,9 @@ class Marker(object):
         x1, y1 = self.display2axes((ytext_dim.x0, ytext_dim.y0))
         x2, y2 = self.display2axes((ytext_dim.x1, ytext_dim.y1))
         self.width_ylabel = np.abs(x2-x1)*1.8
-        self.height_ylabel = (y2-y1)*1.8
+
+        ylabel_ygap = self.display2axes((0,8))[1] - self.display2axes((0,0))[1]
+        self.height_ylabel = (y2-y1) + ylabel_ygap
 
         ## compute height of xlabel
         xtext_dim = self.xtext.get_window_extent(self.renderer)
@@ -187,7 +189,7 @@ class Marker(object):
                         yloc[j] -= abs(yovl)
 
         for i, y in enumerate(yloc):
-            ylabels[i].set_position((xloc[i]+self.ylabel_gap, y))
+            ylabels[i].set_position((xloc[i]+self.ylabel_xgap, y))
 
 
     def move_to_point(self, xd, yd=None, idx=None):
@@ -214,7 +216,7 @@ class Marker(object):
         if self.xformat != None:
             txt = self.xformat(self.xdpoint)
         else:
-            txt = '{:.3f}'.format(self.xdpoint) 
+            txt = '{:.3f}'.format(self.xdpoint)
 
         self.xtext.set_text(txt)
 
@@ -250,7 +252,7 @@ class Marker(object):
                 self.ydot[i].set_visible(False)
 
             else:
-                self.ytext[i].set_position((xa+self.ylabel_gap, ya))
+                self.ytext[i].set_position((xa+self.ylabel_xgap, ya))
                 self.ydot[i].set_data([xd], [yd])
 
                 ## ylabel text
