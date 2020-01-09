@@ -78,6 +78,8 @@ class Marker(object):
         self.renderer = self.axes.figure.canvas.get_renderer()
         self.line_xbounds = [None]*len(self.lines)
 
+        self.top_pad = (self.display2axes((0,3))[1] - self.display2axes((0,0))[1])
+
         if (len(self.lines) < 1):
             raise RuntimeError('Markers cannot be added to axes without data lines.')
         self.create(xd, yd, idx=idx)
@@ -99,6 +101,43 @@ class Marker(object):
                 mline, xdpoint, mdist  = l, l.get_xdata()[xidx_l], mdist_l
         return mline, xdpoint
 
+    def reset(self):
+        self.renderer = self.axes.figure.canvas.get_renderer()
+        self.axes2display = self.axes.transAxes.transform
+        self.display2axes = self.axes.transAxes.inverted().transform
+        boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
+        self.xtext.set_visible(False)
+
+        self.xtext = self.axes.text(0, 0, '0', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
+        self.xtext.set_zorder(20)
+
+        for i, (ax,l) in enumerate(self.lines):
+            self.ytext[i].set_visible(False)
+            boxparams = dict(facecolor='black', edgecolor=l.get_color(), linewidth=1.6, boxstyle='round', alpha=ax.marker_params['alpha'])
+            self.ytext[i] = ax.text(0, 0, '0' ,color='white', fontsize=8, transform = ax.transAxes, verticalalignment='center', bbox=boxparams)
+
+        ## compute height of ylabels, for now we assume the width and height are 
+        ## identical, need to fix this to allow differnt label sizes for each line.
+        ytext_dim = self.ytext[0].get_window_extent(self.renderer)
+        x1, y1 = self.display2axes((ytext_dim.x0, ytext_dim.y0))
+        x2, y2 = self.display2axes((ytext_dim.x1, ytext_dim.y1))
+        self.width_ylabel = np.abs(x2-x1)*1.8
+
+        ylabel_ygap = self.display2axes((0,8))[1] - self.display2axes((0,0))[1]
+        self.height_ylabel = (y2-y1) + ylabel_ygap
+
+        ## compute height of xlabel
+        xtext_dim = self.xtext.get_window_extent(self.renderer)
+        x1, y1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))
+        x2, y2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))
+
+        xlabel_ygap = self.display2axes((0,9))[1] - self.display2axes((0,0))[1]
+        self.height_xlabel = (y2-y1) + xlabel_ygap
+
+        ## move objects to current point
+        self.move_to_point(self.xdpoint)
+
+
     def create(self, xd, yd=None, idx=None):
         
         mline, self.xdpoint = self.find_nearest_xdpoint(xd, yd)
@@ -111,6 +150,8 @@ class Marker(object):
         ## x label
         self.xtext = self.axes.text(0, 0, '0', color='white', transform=self.axes.transAxes, fontsize=8, verticalalignment='center', bbox=boxparams)
         self.xtext.set_zorder(20)
+
+        self.ylabel_xgap = self.display2axes((8,0))[0] - self.display2axes((0,0))[0]
 
         ## ylabels and ydots for each line
         for i, (ax,l) in enumerate(self.lines):
@@ -144,7 +185,9 @@ class Marker(object):
         xtext_dim = self.xtext.get_window_extent(self.renderer)
         x1, y1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))
         x2, y2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))
-        self.height_xlabel = (y2-y1)*1.8
+
+        xlabel_ygap = self.display2axes((0,9))[1] - self.display2axes((0,0))[1]
+        self.height_xlabel = (y2-y1) + xlabel_ygap
 
         ## move objects to current point
         self.move_to_point(xd, yd, idx=idx)
@@ -183,11 +226,14 @@ class Marker(object):
                 else:
                     yloc[i] -= abs(yovl)/2
                     yloc[i+1] += abs(yovl)/2
-                for j in range(i-1, -1, -1):
+
+                    if yloc[i+1] + self.height_ylabel/2 >= 1 - self.top_pad:
+                        yloc[i+1] = 1- (self.height_ylabel/2 + self.top_pad)
+                for j in range(i, -1, -1):
                     yovl = (yloc[j+1] - self.height_ylabel/2) - (yloc[j] + self.height_ylabel/2)
                     if yovl < 0:
                         yloc[j] -= abs(yovl)
-
+            
         for i, y in enumerate(yloc):
             ylabels[i].set_position((xloc[i]+self.ylabel_xgap, y))
 
@@ -221,10 +267,13 @@ class Marker(object):
         self.xtext.set_text(txt)
 
         ## xlabel placement
+        self.renderer = self.axes.figure.canvas.get_renderer()
         xtext_dim = self.xtext.get_window_extent(self.renderer)
+
         x1 = self.display2axes((xtext_dim.x0, xtext_dim.y0))[0]
         x2 = self.display2axes((xtext_dim.x1, xtext_dim.y1))[0]
         xlen = (x2-x1)/2
+        #print(xlen)
 
         self.xtext.set_position((xa-xlen, self.height_xlabel/2))
 
@@ -386,6 +435,7 @@ class MarkerManager(object):
         self.cidbtnrelease = self.fig.canvas.mpl_connect('key_release_event', self.onkey_release)
         self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
+        self.cidresize = self.fig.canvas.mpl_connect('resize_event', self.on_resize)
 
     def axes_to_top(self, axes):
         max_zorder = 0
@@ -455,10 +505,10 @@ class MarkerManager(object):
             ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
             for l_ax in ax.marker_linked_axes:
                 fig = l_ax.figure
-                l_ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
                 if fig not in drawn:
                     fig.canvas.draw()
                     drawn.append(fig)
+                l_ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
 
     def draw_linked(self, axes):
         ## set active marker on each axes to animated
@@ -577,3 +627,13 @@ class MarkerManager(object):
         self.draw_linked(axes)
         #self.draw_all()
         return
+
+    def on_resize(self, event):
+        print('resize')
+        for ax in self.fig.axes:
+            #ax.marker_add(x=0)
+            #ax.markers[0].move_to_point(ax.markers[0].xdpoint)
+            for m in ax.markers:
+                print('reset')
+                m.reset()
+
