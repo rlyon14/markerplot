@@ -29,7 +29,6 @@ class Marker(object):
         self.ylabel_xpad *= (self.axes.figure.dpi/100)
         self.ylabel_ypad *= (self.axes.figure.dpi/100)
         self.xlabel_pad *= (self.axes.figure.dpi/100)
-        print(self.ylabel_xpad)
 
         #self.data2display = self.axes.transData.transform
         #self.display2data = self.axes.transData.inverted().transform
@@ -81,6 +80,17 @@ class Marker(object):
         if (len(self.lines) < 1):
             raise RuntimeError('Markers cannot be added to axes without data lines.')
         self.create(xd, yd, idx=idx)
+
+    def update_marker(self):
+        self.xlabel_pad = self.axes.marker_params['xlabel_pad']
+        self.ylabel_xpad = self.axes.marker_params['ylabel_xpad']
+        self.ylabel_ypad = self.axes.marker_params['ylabel_ypad']
+
+        self.ylabel_xpad *= (self.axes.figure.dpi/100)
+        self.ylabel_ypad *= (self.axes.figure.dpi/100)
+        self.xlabel_pad *= (self.axes.figure.dpi/100)
+
+        self.move_to_point(self.xdpoint)
 
     ## TODO: find nearest using axes or display coordinates, not data coordinates
     def find_nearest_xdpoint(self, xd, yd=None):
@@ -156,8 +166,7 @@ class Marker(object):
 
 
     def compute_ylabel_loc(self, loc_array, ymin, ymax):
-        # print('min/max', ymin, ymax)
-        # print(loc_array)
+
         size = len(loc_array)
         for i in range(int(size/2),  size):
             if i > (size-2):
@@ -189,11 +198,13 @@ class Marker(object):
 
     
     def space_labels(self):
-        xmax, ymin = self.axes2display((0,0))
-        xmin, ymax = self.axes2display((1,1))
+        xmin, ymin = self.axes2display((0,0))
+        xmax, ymax = self.axes2display((1,1))
 
         ymax -= self.ylabel_ypad
         ymin += self.ylabel_ypad
+        xmax -= self.ylabel_xpad
+        xmin += self.ylabel_xpad
 
         xlabel_dim = self.xtext.get_window_extent(self.renderer)
         if self.show_xlabel:
@@ -222,6 +233,20 @@ class Marker(object):
             xloc = dims[i].x0
             yloc = (loc_array[i, 1] + loc_array[i, 0])/2
             ytext.set_position((xloc, yloc))
+            if dims[i].x1 > xmax:
+                xloc -= (dims[i].x1 - dims[i].x0) + self.ylabel_xpad*2
+            ytext.set_position((xloc, yloc))
+        
+        # if xlabel_dim.x0 < xmin:
+        #     ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
+        #     xpos = xlabel_dim.x0 + (xmin - xlabel_dim.x0)
+        #     self.xtext.set_position((xpos, ypos))
+
+        # if xlabel_dim.x1 > xmax:
+        #     ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
+        #     xpos = xlabel_dim.x0 - (xlabel_dim.x1 - xmax)
+        #     self.xtext.set_position((xpos, ypos))
+            
 
 
     def move_to_point(self, xd, yd=None, idx=None):
@@ -378,7 +403,7 @@ class Marker(object):
             self.ydot[i].set_animated(state)
             self.ytext[i].set_animated(state)
 
-    ## assumes the canvas region has already been restored
+    ## assumes the canvas region has already been restored correctly
     def draw(self):
         self.axes.draw_artist(self.xline)
         for i, (ax,l) in enumerate(self.lines):
@@ -425,7 +450,6 @@ class MarkerManager(object):
         self.ciddraw = self.fig.canvas.mpl_connect('draw_event', self.on_draw)
         self.cidresize = self.fig.canvas.mpl_connect('resize_event', self.on_resize)
         
-
     def axes_to_top(self, axes):
         max_zorder = 0
         for ax in axes.get_shared_x_axes().get_siblings(axes):
@@ -445,6 +469,7 @@ class MarkerManager(object):
             ax.marker_add(xd, yd, idx=marker.xidx[0])  
 
         self.make_linked_active(axes, marker)
+        self.draw_all()
 
     def shift_linked(self, axes, direction):
         axes.marker_active.shift(direction)
@@ -457,11 +482,11 @@ class MarkerManager(object):
             ax.marker_delete(ax.marker_active)
 
         self.make_linked_active(axes, new_marker)
-
-        if axes.marker_active != None:
-            axes.marker_active.draw()
-            for ax in axes.marker_linked_axes:
-                ax.marker_active.draw()
+        #self.draw_all()
+        # if axes.marker_active != None:
+        #     axes.marker_active.draw()
+        #     for ax in axes.marker_linked_axes:
+        #         ax.marker_active.draw()
 
     def make_linked_active(self, axes, marker):
         if axes.marker_active != None:
@@ -482,10 +507,19 @@ class MarkerManager(object):
             for ax in axes.marker_linked_axes:
                 ax.marker_active = None
 
-        self.draw_all()
-        axes._draw_background = axes.figure.canvas.copy_from_bbox(axes.bbox)
-        for ax in axes.marker_linked_axes:
-            ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
+        # self.draw_all()
+        # axes._draw_background = axes.figure.canvas.copy_from_bbox(axes.bbox)
+        # for ax in axes.marker_linked_axes:
+        #     ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
+
+    def set_all_animated(state):
+        for ax in self.fig.axes:
+            for m in l_ax.markers:
+                m.set_animated(state)
+            for l_ax in ax.marker_linked_axes:
+                for m in l_ax.marker:
+                    m.set_animated(state)
+
 
     def draw_all(self):
         self.fig.canvas.draw()
@@ -497,15 +531,20 @@ class MarkerManager(object):
                 if fig not in drawn:
                     fig.canvas.draw()
                     drawn.append(fig)
-                l_ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
+                l_ax._draw_background = fig.canvas.copy_from_bbox(l_ax.bbox)
+
+        # for ax in self.fig.axes:
+        #     self.draw_linked(ax)
 
     def draw_linked(self, axes):
         ## set active marker on each axes to animated
         axes.figure.canvas.restore_region(axes._draw_background)
-        axes.marker_active.draw()
+        if axes.marker_active != None:
+            axes.marker_active.draw()
         for ax in axes.marker_linked_axes:
             ax.figure.canvas.restore_region(ax._draw_background)
-            ax.marker_active.draw()
+            if ax.marker_active != None:
+                ax.marker_active.draw()
 
 
     def get_event_marker(self, axes, event):
@@ -561,10 +600,10 @@ class MarkerManager(object):
             self.shift_is_held = True
         elif(event.key == 'left'):
             self.shift_linked(axes, -1)
-            self.draw_linked(axes)
+            #self.draw_linked(axes)
         elif(event.key == 'right'):
             self.shift_linked(axes, 1)
-            self.draw_linked(axes)
+            #self.draw_linked(axes)
         elif(event.key == 'delete'):
             self.delete_linked(axes)
 
@@ -580,7 +619,7 @@ class MarkerManager(object):
             return
         
         self.move_linked(axes, xd, yd)
-        self.draw_linked(axes)
+        #self.draw_linked(axes)
 
     def onclick(self, event):
         axes = self.get_event_axes(event)
@@ -607,28 +646,27 @@ class MarkerManager(object):
             self.add_linked(axes, xd, yd)
         elif (m != None): 
             self.make_linked_active(axes, m)
+            #self.draw_linked(axes)
+            #self.draw_all()
         elif (active_marker != None):
             self.move_linked(axes, xd, yd)
+            #self.draw_linked(axes)
         else:
             return
         
-        self.draw_linked(axes)
-        #self.draw_all()
+        #self.draw_linked(axes)
         return
 
     def on_draw(self, event):
         print('draw')
         self.fig.canvas.mpl_disconnect(self.ciddraw)
         for ax in self.fig.axes:
-            #ax.marker_add(x=0)
             for m in ax.markers:
-                m.move_to_point(m.xdpoint)
-
-            #self.make_linked_active(ax, ax.marker_active)
+                m.update_marker()
 
         self.draw_all()
         self.ciddraw = self.fig.canvas.mpl_connect('draw_event', self.on_draw)
 
     def on_resize(self, event):
-        print('resize')
+        pass
 
