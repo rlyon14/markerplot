@@ -13,6 +13,7 @@ def marker_add(self, x, y=None, idx=None):
     new_marker = Marker(self.axes, x, y, idx)
     
     self.markers.append(new_marker)
+    self.marker_active = new_marker
     return new_marker
 
 def marker_delete(self, marker):
@@ -51,7 +52,7 @@ def marker_enable(self, interactive=True, top_axes=None, **kwargs):
         xreversed=False, 
         alpha=0.7,
         index_mode=False,
-        xlabel_pad = 5,
+        xlabel_pad = 6,
         ylabel_xpad = 10,
         ylabel_ypad = 4,
     )
