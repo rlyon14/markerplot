@@ -50,7 +50,10 @@ def marker_enable(self, interactive=True, top_axes=None, **kwargs):
         show_xlabel=True,
         xreversed=False, 
         alpha=0.7,
-        index_mode=False
+        index_mode=False,
+        xlabel_pad = 5,
+        ylabel_xpad = 10,
+        ylabel_ypad = 4,
     )
 
     default_params.update(dict(**kwargs))
