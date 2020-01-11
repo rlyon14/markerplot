@@ -32,28 +32,25 @@ class Marker(object):
 
         #self.data2display = self.axes.transData.transform
         #self.display2data = self.axes.transData.inverted().transform
-        #self.data2axes = self.axes.transLimits.transform
-        #self.axes2data = self.axes.transLimits.inverted().transform
 
         scale_func = {'log': np.log10, 'linear': lambda x: x}
 
         ## future matplotlib versions (and maybe past versions) might keep the tranform functions synced with the scale.
         ## for 3.1.1 we have to do this manually
-        def data2axes(ax, point):
+        def data2display(ax, point):
             xscale = ax.get_xscale()
             yscale = ax.get_yscale()
-
+            
             assert xscale in scale_func, 'x-axes scale: {} not supported'.format(xscale)
             assert yscale in scale_func, 'y-axes scale: {} not supported'.format(yscale)
 
             xd = scale_func[xscale](point[0])
             yd = scale_func[yscale](point[1])
 
-            return ax.transLimits.transform((xd,yd))
+            return ax.transData.transform((xd,yd))
 
-        self.data2axes = data2axes
+        self.data2display = data2display
         self.axes2display = self.axes.transAxes.transform
-        self.display2axes = self.axes.transAxes.inverted().transform
 
         self.lines = []
 
@@ -276,8 +273,8 @@ class Marker(object):
         ## vertical line placement
         self.xline.set_xdata([self.xdpoint, self.xdpoint])
 
-        xa, ya = self.data2axes(self.axes, (self.xdpoint, 0))
-        xl, yl = self.axes2display((xa,ya))
+        xl, yl = self.data2display(self.axes, (self.xdpoint, 0))
+        #xl, yl = self.axes2display((xa,ya))
 
         ## xlabel text
         if self.xformat != None:
@@ -314,8 +311,8 @@ class Marker(object):
             ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
 
-            xa, ya = self.data2axes(ax, (xd, yd))
-            xl, yl = self.axes2display((xa,ya))
+            xl, yl = self.data2display(ax, (xd, yd))
+            #xl, yl = self.axes2display((xa,ya))
 
             if (not np.isfinite(yd)):
                 self.ytext[i].set_visible(False)
@@ -441,14 +438,7 @@ class MarkerManager(object):
 
         self.move = None
         self.shift_is_held = False 
-        self.last_release = [None, 0]
-        self.last_press = [None, 0]
-        self.valid_press = False
-        #self._active_animated = False
 
-        self.press_max_seconds = 0.05
-        self.key_released_timer = None
-        self.key_pressed = False
         self.zoom = False
 
         self.cidclick = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
@@ -563,34 +553,18 @@ class MarkerManager(object):
         else:
             return None
 
-    def onkey_release_debounce(self, event):
-        if self.key_pressed:
-            self.key_released_timer = Timer(self.press_max_seconds, self.onkey_release, [event])
-            self.key_released_timer.start()
-
     def onkey_release(self, event):
 
-        self.key_pressed = False
         axes = self.get_event_axes(event)
 
         if event.key == 'shift':
             self.shift_is_held = False
 
     def onkey_press(self, event):
-        
-        if self.key_released_timer:
-            self.key_released_timer.cancel()
-            self.key_released_timer = None
-
-        self.key_pressed = True
 
         axes = self.get_event_axes(event)
         if axes == None:
             return
-
-        # if not self._active_animated:
-        #     self.set_active_animated()
-        #     self.draw_all()
 
         if axes.marker_active == None:
             return
@@ -658,7 +632,6 @@ class MarkerManager(object):
         return
 
     def draw_all(self, animated=True):
-        print('draw_all')
         self.set_all_animated(False)
         if animated:
             self.set_active_animated()
@@ -709,10 +682,8 @@ class MarkerManager(object):
                     m.update_marker()
 
     def on_draw(self, event):
-        print('draw')
-        ## savefig doesn't respect set_animated, it will draw all objects. Turn off animated if
-        ## draw is from savefig command
-        ## still need to have a clean canvas image to restore, without the active markers on it...
+        ## savefig doesn't respect set_animated, it will draw all objects. 
+        ## Turn off animated if draw is from savefig command
         self.update_all()
         self.draw_all(animated=False)
 
