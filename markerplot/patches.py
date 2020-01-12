@@ -90,10 +90,10 @@ def marker_enable(self, interactive=True, top_axes=None, **marker_params):
 
                 show_dot: (bool) show marker dot on each data line
 
-                yformat: function with parameters: (xvalue, yvalue, idx)
+                yformat: function with parameters: (xd, yd, idx)
                             returns string to place in marker label text box
 
-                xformat: function with parameters: (xvalue)
+                xformat: function with parameters: (xd)
                             returns string to place in xlabel text box (if shown)
                             
                 show_xlabel: (bool) show xdata label at bottom of rectlinear plots

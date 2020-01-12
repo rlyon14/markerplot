@@ -12,13 +12,13 @@ from threading import Timer, Semaphore
 class Marker(object):
     
     def __init__(self, axes, xd=None, idx=None, disp=None):
-        """ create marker at a given x data value, index value or display coordinate
+        """ create marker on axes at a given x data value, data index value or display coordinate
 
             Parameters
             ----------
                 xd: (float) x-value in data coordinates
                 disp: (tuple) x,y tuple of display cordinates
-                idx: (int) index of x-data (only for index mode)
+                idx: (int) index of x-data (only used in index mode)
         """
         self.axes = axes 
 
@@ -65,7 +65,6 @@ class Marker(object):
         for l in self.axes.lines:
             if (l not in self.axes.marker_ignorelines):
                 self.lines.append((self.axes, l))
-                l.xy = self.axes.transData.transform(l.get_xydata())
 
         ## get lines from any shared axes
         for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
@@ -89,6 +88,8 @@ class Marker(object):
         for i, (ax,l) in enumerate(self.lines):
             xdata = l.get_xdata()
             xcheck[i] = xdata[0], xdata[-1], len(xdata)
+            #TODO: fix this for different x and y scales
+            l.xy = ax.transData.transform(l.get_xydata())
 
         self.index_mode = np.all(xcheck == xcheck[0,:]) if not self.axes._force_index_mode else True
 

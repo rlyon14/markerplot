@@ -9,7 +9,7 @@ import markerplot
 
 dir_ = Path(__file__).parent
 
-matplotlib.use('Qt4Agg') 
+#matplotlib.use('Qt4Agg') 
 
 fig, axes = plt.subplots(1,1, subplot_kw=dict(polar=True))
 
