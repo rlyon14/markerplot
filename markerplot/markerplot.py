@@ -11,17 +11,22 @@ from threading import Timer, Semaphore
 
 class Marker(object):
     
-    def __init__(self, axes, xd, yd, idx=None):
-        
+    def __init__(self, axes, xd=None, idx=None, disp=None):
+        """ create marker at a given x data value, index value or display coordinate
+
+            Parameters
+            ----------
+                xd: (float) x-value in data coordinates
+                disp: (tuple) x,y tuple of display cordinates
+                idx: (int) index of x-data (only for index mode)
+        """
         self.axes = axes 
 
         ## marker will inherit these parameters from axes, ignoring params from linked axes
         self.show_xline = axes.marker_params['show_xline']
-        self.show_xlabel = axes.marker_params['show_xlabel']
-        self.xformat = axes.marker_params['xformat']
+        self.show_xlabel = axes.marker_params['show_xlabel'] if self.axes.name != 'polar' else False
         self.xreversed = axes.marker_params['xreversed']
-        self.xmode = axes.marker_params['xmode']
-        self.index_mode = axes.marker_params['index_mode']
+        self.wrap = axes.marker_params['wrap']
         self.xlabel_pad = axes.marker_params['xlabel_pad']
         self.ylabel_xpad = axes.marker_params['ylabel_xpad']
         self.ylabel_ypad = axes.marker_params['ylabel_ypad']
@@ -37,6 +42,7 @@ class Marker(object):
 
         ## future matplotlib versions (and maybe past versions) might keep the tranform functions synced with the scale.
         ## for 3.1.1 we have to do this manually
+        ## TODO: fix this to handle numpy arrays
         def data2display(ax, point):
             xscale = ax.get_xscale()
             yscale = ax.get_yscale()
@@ -51,6 +57,7 @@ class Marker(object):
 
         self.data2display = data2display
         self.axes2display = self.axes.transAxes.transform
+        self.display2data = self.axes.transData.inverted().transform
 
         self.lines = []
 
@@ -58,6 +65,7 @@ class Marker(object):
         for l in self.axes.lines:
             if (l not in self.axes.marker_ignorelines):
                 self.lines.append((self.axes, l))
+                l.xy = self.axes.transData.transform(l.get_xydata())
 
         ## get lines from any shared axes
         for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
@@ -76,9 +84,19 @@ class Marker(object):
 
         if (len(self.lines) < 1):
             raise RuntimeError('Markers cannot be added to axes without data lines.')
-        self.create(xd, yd, idx=idx)
+
+        xcheck = np.zeros(shape=(len(self.lines), 3))
+        for i, (ax,l) in enumerate(self.lines):
+            xdata = l.get_xdata()
+            xcheck[i] = xdata[0], xdata[-1], len(xdata)
+
+        self.index_mode = np.all(xcheck == xcheck[0,:]) if not self.axes._force_index_mode else True
+
+        self.create(xd, idx=idx, disp=disp)
 
     def update_marker(self):
+        """ updates marker (without drawing on canvas) if the dpi or figure size changes
+        """
         self.xlabel_pad = self.axes.marker_params['xlabel_pad']
         self.ylabel_xpad = self.axes.marker_params['ylabel_xpad']
         self.ylabel_ypad = self.axes.marker_params['ylabel_ypad']
@@ -87,28 +105,59 @@ class Marker(object):
         self.ylabel_ypad *= (self.axes.figure.dpi/100)
         self.xlabel_pad *= (self.axes.figure.dpi/100)
 
-        self.move_to_point(self.xdpoint)
+        self.display2data = self.axes.transData.inverted().transform
 
-    ## TODO: find nearest using axes or display coordinates, not data coordinates
-    def find_nearest_xdpoint(self, xd, yd=None):
+        for i, (ax,l) in enumerate(self.lines):
+            l.xy = self.axes.transData.transform(l.get_xydata())
+
+        self.move_to_point(self.xdpoint, idx=self.xidx[0])
+
+    def find_nearest_xdpoint(self, xd=None, disp=None):
         mline, xdpoint, mdist = None, 0, np.inf
 
-        for ax, l in self.lines:
-            xl, yl = l.get_xdata(), l.get_ydata()
+        if disp != None:
+            x, y = disp
 
-            if yd==None or self.xmode:
-                dist = (xl - xd)**2
+        for ax, l in self.lines:
+            if self.show_xline:
+                if disp != None:
+                    xd, yd = self.display2data(disp)
+                xl = l.get_xdata()
+                if (ax.name == 'polar'):
+                    dist = np.full(fill_value=np.inf, shape=(3, len(xl)))
+                    dist[0] = np.abs(xl - xd)
+                    dist[1] = np.abs((xl +2*np.pi) -xd)
+                    dist[2] = np.abs((xl -2*np.pi) -xd)
+
+                    xlist = np.zeros(shape=(len(dist), 2))
+                    for i in range(len(dist)):
+                        idx = np.argmin(dist[i])
+                        xlist[i] = idx, dist[i][idx]
+
+                    min_idx = np.argmin(xlist[:,1])
+                    xidx_l, mdist_l = xlist[min_idx]
+                else:
+                    dist = np.abs(xl - xd)
+                    xidx_l, mdist_l = np.argmin(dist), np.min(dist) 
+                
             else:
-                dist = (xl - xd)**2 + (yl-yd)**2
-            xidx_l, mdist_l = np.argmin(dist), np.min(dist)  
+                if disp != None:
+                    xl, yl = l.xy[:,0], l.xy[:,1]
+                    dist = np.abs(xl - x) + np.abs(yl-y)
+                else:
+                    xl, yl = l.get_data()
+                    dist = np.abs(xl - xd)
+
+                xidx_l, mdist_l = np.argmin(dist), np.min(dist)  
             
             if mdist_l < mdist:
-                mline, xdpoint, mdist  = l, l.get_xdata()[xidx_l], mdist_l
+                mline, xdpoint, mdist  = l, l.get_xdata()[int(xidx_l)], mdist_l
+
         return mline, xdpoint
 
-    def create(self, xd, yd=None, idx=None):
-        
-        mline, self.xdpoint = self.find_nearest_xdpoint(xd, yd)
+    def create(self, xd=None, disp=None, idx=None):
+
+        mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
 
         ## vertical x line
         boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
@@ -139,7 +188,7 @@ class Marker(object):
             self.line_xbounds[i] = np.min(l.get_xdata()), np.max(l.get_xdata())
 
         ## move objects to current point
-        self.move_to_point(xd, yd, idx=idx)
+        self.move_to_point(xd, disp=disp, idx=idx)
 
         ## set visibility
         if not self.show_xlabel:
@@ -236,27 +285,19 @@ class Marker(object):
                 xloc -= (dims[i].x1 - dims[i].x0) + self.ylabel_xpad*2
             ytext.set_position((xloc, yloc))
         
-        # if xlabel_dim.x0 < xmin:
-        #     ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
-        #     xpos = xlabel_dim.x0 + (xmin - xlabel_dim.x0)
-        #     self.xtext.set_position((xpos, ypos))
+        if xlabel_dim.x0 < xmin:
+            ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
+            xpos = xmin
+            self.xtext.set_position((xpos, ypos))
 
-        # if xlabel_dim.x1 > xmax:
-        #     ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
-        #     xpos = xlabel_dim.x0 - (xlabel_dim.x1 - xmax)
-        #     self.xtext.set_position((xpos, ypos))
-            
+        if xlabel_dim.x1 > xmax:
+            ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
+            xpos = xmax - (xlabel_dim.x1 - xlabel_dim.x0)
+            self.xtext.set_position((xpos, ypos))
 
+    def move_to_point(self, xd=None, disp=None, idx=None):
 
-    def move_to_point(self, xd, yd=None, idx=None):
-        """ moves marker to a given x and y value (in data coordinates)
-            Parameters
-            ----------
-                xd: x-value in data coordinates
-                yd (optional): y-value in data coordinates
-                idx (optional): index of x-data (only for index mode)
-        """
-        mline, self.xdpoint = self.find_nearest_xdpoint(xd, yd)
+        mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
 
         if not self.index_mode:
             for i, (ax,l) in enumerate(self.lines):
@@ -274,13 +315,9 @@ class Marker(object):
         self.xline.set_xdata([self.xdpoint, self.xdpoint])
 
         xl, yl = self.data2display(self.axes, (self.xdpoint, 0))
-        #xl, yl = self.axes2display((xa,ya))
 
         ## xlabel text
-        if self.xformat != None:
-            txt = self.xformat(self.xdpoint)
-        else:
-            txt = '{:.3f}'.format(self.xdpoint)
+        txt = self.axes.marker_params['xformat'](self.xdpoint)
 
         self.xtext.set_text(txt)
 
@@ -310,9 +347,7 @@ class Marker(object):
 
             ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
-
             xl, yl = self.data2display(ax, (xd, yd))
-            #xl, yl = self.axes2display((xa,ya))
 
             if (not np.isfinite(yd)):
                 self.ytext[i].set_visible(False)
@@ -323,10 +358,7 @@ class Marker(object):
                 self.ydot[i].set_data([xd], [yd])
 
                 ## ylabel text
-                if ax.marker_params['yformat'] != None:
-                    txt = ax.marker_params['yformat'](xd, yd, self.xidx[i])
-                else:
-                    txt = '{:0.3f}'.format(yd)
+                txt = ax.marker_params['yformat'](xd, yd, idx=self.xidx[i])
 
                 self.ytext[i].set_text(txt)
         
@@ -340,9 +372,9 @@ class Marker(object):
             xlen = len(self.lines[0][1].get_xdata())
             nxidx = self.xidx[0] -1 if direction < 0 else self.xidx[0] +1
             if (nxidx >= xlen):
-                nxidx = xlen-1
+                nxidx = 0 if self.wrap else xlen-1
             elif (nxidx <= 0):
-                nxidx = 0
+                nxidx = xlen-1 if self.wrap else 0
             self.move_to_point(self.lines[0][1].get_xdata()[nxidx])
             return
 
@@ -407,8 +439,10 @@ class Marker(object):
             self.ydot[i].set_animated(state)
             self.ytext[i].set_animated(state)
 
-    ## assumes the canvas region has already been restored correctly
     def draw(self):
+        """ draws marker on canvas
+            assumes the canvas has already been restored correctly
+        """
         self.axes.draw_artist(self.xline)
         for i, (ax,l) in enumerate(self.lines):
             self.ydot[i].axes.draw_artist(self.ydot[i])
@@ -456,15 +490,17 @@ class MarkerManager(object):
         axes.set_zorder(max_zorder+1)
         axes.patch.set_visible(False)
         
-    def move_linked(self, axes, xd, yd):
-        axes.marker_active.move_to_point(xd, yd)
+    def move_linked(self, axes, x, y):
+        axes.marker_active.move_to_point(disp=(x,y))
+        idx = axes.marker_active.xidx[0] if axes._force_index_mode else None
         for ax in axes.marker_linked_axes:
-            ax.marker_active.move_to_point(xd, yd, idx=axes.marker_active.xidx[0])
+            ax.marker_active.move_to_point(xd=axes.marker_active.xdpoint, idx=idx)
 
-    def add_linked(self, axes, xd, yd):
-        marker = axes.marker_add(xd, yd)  
+    def add_linked(self, axes, x, y):
+        marker = axes.marker_add(disp=(x,y))  
+        idx = axes.marker_active.xidx[0] if axes._force_index_mode else None
         for ax in axes.marker_linked_axes:
-            ax.marker_add(xd, yd, idx=marker.xidx[0])  
+            ax.marker_add(xd=axes.marker_active.xdpoint, idx=idx)
 
         self.make_linked_active(axes, marker)
         self.draw_all()
@@ -482,7 +518,6 @@ class MarkerManager(object):
         self.make_linked_active(axes, new_marker)
 
     def make_linked_active(self, axes, marker):
-
         axes.marker_active = marker
         if (marker != None):
             idx = axes.markers.index(axes.marker_active)
@@ -509,7 +544,6 @@ class MarkerManager(object):
                     l_ax.marker_active.set_animated(True)
 
     def clear_saved_background(self):
-
         for ax in self.fig.axes:
             ax._draw_background = None
             for l_ax in ax.marker_linked_axes:
@@ -554,14 +588,12 @@ class MarkerManager(object):
             return None
 
     def onkey_release(self, event):
-
         axes = self.get_event_axes(event)
 
         if event.key == 'shift':
             self.shift_is_held = False
 
     def onkey_press(self, event):
-
         axes = self.get_event_axes(event)
         if axes == None:
             return
@@ -581,8 +613,8 @@ class MarkerManager(object):
             self.draw_all()
 
     def onmotion(self, event):
-        xd = event.xdata
-        yd = event.ydata
+        x = event.x
+        y = event.y
         axes = self.get_event_axes(event)
 
         if axes == None:
@@ -591,7 +623,7 @@ class MarkerManager(object):
         if axes != self.move or axes.marker_active == None:
             return
         
-        self.move_linked(axes, xd, yd)
+        self.move_linked(axes, x, y)
         self.draw_active_marker(axes)
 
     def onclick(self, event):
@@ -605,8 +637,8 @@ class MarkerManager(object):
             self.draw_all()
 
     def onrelease(self, event):
-        xd = event.xdata
-        yd = event.ydata
+        x = event.x
+        y = event.y
         axes = self.get_event_axes(event)
 
         self.move = None
@@ -618,13 +650,13 @@ class MarkerManager(object):
         active_marker = axes.marker_active
 
         if (m == None and (active_marker == None or self.shift_is_held == True)):
-            self.add_linked(axes, xd, yd)
+            self.add_linked(axes, x, y)
             self.draw_all()
         elif (m != None): 
             self.make_linked_active(axes, m)
             self.draw_all()
         elif (active_marker != None):
-            self.move_linked(axes, xd, yd)
+            self.move_linked(axes, x, y)
             self.draw_all()
         else:
             return
@@ -674,6 +706,7 @@ class MarkerManager(object):
         self.ciddraw = self.fig.canvas.mpl_connect('draw_event', self.on_draw)
 
     def update_all(self):
+        ##TODO: update display for twinx axes
         for ax in self.fig.axes:
             for m in ax.markers:
                 m.update_marker()
@@ -682,8 +715,6 @@ class MarkerManager(object):
                     m.update_marker()
 
     def on_draw(self, event):
-        ## savefig doesn't respect set_animated, it will draw all objects. 
-        ## Turn off animated if draw is from savefig command
         self.update_all()
         self.draw_all(animated=False)
 
