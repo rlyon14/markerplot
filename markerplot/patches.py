@@ -19,8 +19,8 @@ def marker_add(self, xd=None, idx=None, disp=None):
         Parameters
         ----------
             xd: (float) x-value in data coordinates
-            disp: (tuple) x,y tuple of display cordinates
-            idx: (int) index of x-data (only for index mode)
+            disp: (tuple) x,y value in axes display cordinates
+            idx: (int) index of x-data (ignored if axes data lines have unequal xdata arrays)
     """
     new_marker = Marker(self.axes, xd=xd, idx=idx, disp=disp)
     
@@ -48,12 +48,18 @@ def marker_ignore(self, *lines):
     self.marker_ignorelines += lines
 
 def marker_link(self, *axes, byindex=False):
-    """ links axes together so that any change to markers on one is reflected in the other
+    """ --interactive only--
+        links axes together so that any interactive change to markers on axes one is reflected in the other
+
         Parameters
         ----------
             axes: (Axes object) axes that will be linked to current axes (self)
             byindex: (bool) if True, each marker will be linked by xdata index rather than xdata value
-                     (assumes each line on axes have identical xdata lengths)
+                     This will force each axes into index mode, meaning every data line must have identical xdata lengths.
+
+        Warning: 
+        If manual markers are placed in linked axes with axes.marker_add(), interactive markers will fail if the 
+        number of markers are not kept equal between linked axes.
     """
     axes = list(axes)
     self._force_index_mode = byindex
@@ -83,24 +89,24 @@ def marker_enable(self, interactive=True, top_axes=None, **marker_params):
                       axes in this list will be flagged as the interactive axes, any shared axes behind these will be non-interactive
             
             marker_params:  marker parameters to attach to all child axes, if parameters other than the defaults are needed.
-                            if an axes needs unique parameters, use axes.marker_set_params() after fig.marker_enable() is called
+                            If an axes needs unique parameters, use axes.marker_set_params() 
 
-                show_xline: (bool) show vertical line (for rectlinear) or radial line (for polar) at each marker.
-                            also affects how interactive marker placement is handled 
+                    show_xline: (bool) show vertical line (for rectlinear) or radial line (for polar) at each marker.
+                                also affects how interactive marker placement is handled 
 
-                show_dot: (bool) show marker dot on each data line
+                    show_dot: (bool) show marker dot on each data line
 
-                yformat: function with parameters: (xd, yd, idx)
-                            returns string to place in marker label text box
+                    yformat: function with parameters: (xd, yd, idx)
+                                returns string to place in marker label text box
 
-                xformat: function with parameters: (xd)
-                            returns string to place in xlabel text box (if shown)
-                            
-                show_xlabel: (bool) show xdata text box at bottom of rectlinear plots
+                    xformat: function with parameters: (xd)
+                                returns string to place in xlabel text box (if shown)
+                                
+                    show_xlabel: (bool) show xdata text box at bottom of rectlinear markers
 
-                alpha: (float, 0-1) alpha value to apply to marker label text boxes
+                    alpha: (float, 0-1) alpha value to apply to marker label text boxes
 
-                wrap: (bool) allow markers to wrap to other side of data array when using arrow keys
+                    wrap: (bool) allow markers to wrap to other side of data array when using arrow keys
     """
     if interactive:
         self._eventmanager = MarkerManager(self, top_axes=top_axes)

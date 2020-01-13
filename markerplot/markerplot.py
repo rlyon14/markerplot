@@ -17,8 +17,8 @@ class Marker(object):
             Parameters
             ----------
                 xd: (float) x-value in data coordinates
-                disp: (tuple) x,y tuple of display cordinates
-                idx: (int) index of x-data (only used in index mode)
+                disp: (tuple) x,y value in axes display cordinates
+                idx: (int) index of x-data (ignored if axes data lines have unequal xdata arrays)
         """
         self.axes = axes 
 
@@ -35,25 +35,8 @@ class Marker(object):
         self.ylabel_ypad *= (self.axes.figure.dpi/100)
         self.xlabel_pad *= (self.axes.figure.dpi/100)
 
-        #self.data2display = self.axes.transData.transform
-        #self.display2data = self.axes.transData.inverted().transform
-
-        scale_func = {'log': np.log10, 'linear': lambda x: x}
-
-        ## future matplotlib versions (and maybe past versions) might keep the tranform functions synced with the scale.
-        ## for 3.1.1 we have to do this manually
-        ## TODO: fix this to handle numpy arrays
         def data2display(ax, point):
-            xscale = ax.get_xscale()
-            yscale = ax.get_yscale()
-            
-            assert xscale in scale_func, 'x-axes scale: {} not supported'.format(xscale)
-            assert yscale in scale_func, 'y-axes scale: {} not supported'.format(yscale)
-
-            xd = scale_func[xscale](point[0])
-            yd = scale_func[yscale](point[1])
-
-            return ax.transData.transform((xd,yd))
+            return ax.transData.transform(point)
 
         self.data2display = data2display
         self.axes2display = self.axes.transAxes.transform
@@ -90,8 +73,8 @@ class Marker(object):
         for i, (ax,l) in enumerate(self.lines):
             xdata = l.get_xdata()
             xcheck[i] = xdata[0], xdata[-1], len(xdata)
-            #TODO: fix this for different x and y scales
-            l.xy = ax.transData.transform(l.get_xydata())
+
+            l.xy = self.data2display(ax, l.get_xydata())
 
         for ax in self.axes.marker_linked_axes:
             for l in ax.lines:
@@ -120,7 +103,7 @@ class Marker(object):
         self.display2data = self.axes.transData.inverted().transform
 
         for i, (ax,l) in enumerate(self.lines):
-            l.xy = self.axes.transData.transform(l.get_xydata())
+            l.xy = self.data2display(ax, l.get_xydata())
 
         self.move_to_point(self.xdpoint, idx=self.xidx[0])
 
@@ -169,7 +152,16 @@ class Marker(object):
 
     def create(self, xd=None, disp=None, idx=None):
 
-        mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
+        if not self.index_mode:
+            if xd == None:
+                raise RuntimeError('xdata or display cordinates must be provided if not in index mode')
+
+            mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
+        else:
+            if idx != None:
+                self.xdpoint = self.lines[0][1].get_xdata()[self.xidx[0]]
+            else:
+                mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
 
         ## vertical x line
         boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
@@ -309,19 +301,20 @@ class Marker(object):
 
     def move_to_point(self, xd=None, disp=None, idx=None):
 
-        mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
-
         if not self.index_mode:
+            mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
+
             for i, (ax,l) in enumerate(self.lines):
                 self.xidx[i] = np.argmin(np.abs(l.get_xdata()-self.xdpoint))
                 if l == mline:
                     self.xdpoint = l.get_xdata()[self.xidx[i]]
         else:
             if idx == None:
+                mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
                 idx = np.argmin(np.abs(mline.get_xdata()-self.xdpoint))
             for i, (ax,l) in enumerate(self.lines):
                 self.xidx[i] = idx
-            self.xdpoint = mline.get_xdata()[self.xidx[0]]
+            self.xdpoint = self.lines[0][1].get_xdata()[self.xidx[0]]
         
         ## vertical line placement
         self.xline.set_xdata([self.xdpoint, self.xdpoint])

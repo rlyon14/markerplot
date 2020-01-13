@@ -26,8 +26,6 @@ x2 = np.linspace(-6*np.pi, 6*np.pi, 100)
 ax1.plot(x1, np.sin(x1), label='sin(x)')
 ax1.plot(x2, np.sin(x1), label='sin(x)_2')
 ax2.plot(x1, np.sin(x1), label='cos(x)')
-# ax1.set_xlim([-6,6])
-# ax2.set_xlim([-6,6])
 
 ax1.legend()
 ax2.legend()
