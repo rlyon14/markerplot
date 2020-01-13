@@ -84,6 +84,8 @@ class Marker(object):
         if (len(self.lines) < 1):
             raise RuntimeError('Markers cannot be added to axes without data lines.')
 
+        ## check if all lines have identical x-data
+        ## turn on index mode if so. 
         xcheck = np.zeros(shape=(len(self.lines), 3))
         for i, (ax,l) in enumerate(self.lines):
             xdata = l.get_xdata()
@@ -91,7 +93,16 @@ class Marker(object):
             #TODO: fix this for different x and y scales
             l.xy = ax.transData.transform(l.get_xydata())
 
+        for ax in self.axes.marker_linked_axes:
+            for l in ax.lines:
+                if (l not in ax.marker_ignorelines):
+                    xdata = l.get_xdata()
+                    xcheck = np.append(xcheck, [[xdata[0], xdata[-1], len(xdata)]], axis=0)
+
         self.index_mode = np.all(xcheck == xcheck[0,:]) if not self.axes._force_index_mode else True
+
+        ## xlabel only valid if every line has identical x-data, (?? xline might not be valid either ??)
+        self.show_xlabel = False if not self.index_mode else self.show_xlabel
 
         self.create(xd, idx=idx, disp=disp)
 
@@ -508,8 +519,10 @@ class MarkerManager(object):
 
     def shift_linked(self, axes, direction):
         axes.marker_active.shift(direction)
+        idx = axes.marker_active.xidx[0] if axes._force_index_mode else None
         for ax in axes.marker_linked_axes:
-            ax.marker_active.shift(direction)
+            ax.marker_active.move_to_point(xd=axes.marker_active.xdpoint, idx=idx)
+            #ax.marker_active.shift(direction)
         
     def delete_linked(self, axes):
         new_marker = axes.marker_delete(axes.marker_active)

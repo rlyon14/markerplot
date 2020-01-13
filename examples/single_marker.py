@@ -15,7 +15,7 @@ fig, ax1 = plt.subplots(1, 1, figsize=(10,5), constrained_layout=False)
 #ax1.grid(linewidth=0.5, linestyle='-')
 #ax2.grid(linewidth=0.5, linestyle='-')
 
-fig.marker_enable(show_xline=False, show_xlabel=False, wrap=True)
+fig.marker_enable(show_xline=True, show_xlabel=True, wrap=True)
 
 ## link all markers between ax1 and ax2 (interactive only)
 #ax1.marker_link(ax2)

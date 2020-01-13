@@ -96,7 +96,7 @@ def marker_enable(self, interactive=True, top_axes=None, **marker_params):
                 xformat: function with parameters: (xd)
                             returns string to place in xlabel text box (if shown)
                             
-                show_xlabel: (bool) show xdata label at bottom of rectlinear plots
+                show_xlabel: (bool) show xdata text box at bottom of rectlinear plots
 
                 alpha: (float, 0-1) alpha value to apply to marker label text boxes
 
