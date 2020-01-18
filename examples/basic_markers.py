@@ -38,5 +38,4 @@ fig.savefig(dir_/ 'test.png', dpi=330)
 ## place static markers
 
 
-
 plt.show()
