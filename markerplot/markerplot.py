@@ -153,7 +153,7 @@ class Marker(object):
     def create(self, xd=None, disp=None, idx=None):
 
         if not self.index_mode:
-            if xd == None:
+            if xd == None and disp == None:
                 raise RuntimeError('xdata or display cordinates must be provided if not in index mode')
 
             mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
