@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 #from fig2pptx import fig2pptx
 
-import markerplot
+import mplmarkers
 
 dir_ = Path(__file__).parent
 
@@ -36,7 +36,7 @@ plt.tight_layout()
 fig.savefig(dir_/ 'test.png', dpi=330)
 #fig2pptx(dir_ / r'test.pptx', close_plots=False)
 ## place static markers
-
+nwshistory
 
 
 plt.show()

@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib.artist import Artist
 from matplotlib.lines import Line2D
 from matplotlib.figure import Figure
-from . markerplot import MarkerManager, Marker
+from . markers import MarkerManager, Marker
 
 import gorilla
 import matplotlib
