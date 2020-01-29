@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib.artist import Artist
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from time import time
+from time import time, sleep
 from threading import Timer, Semaphore
 ##
 
@@ -353,6 +353,7 @@ class Marker(object):
             ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
             xl, yl = self.data2display(ax, (xd, yd))
+            print(yl)
 
             if (not np.isfinite(yd)):
                 self.ytext[i].set_visible(False)
@@ -646,6 +647,7 @@ class MarkerManager(object):
     def onrelease(self, event):
         x = event.x
         y = event.y
+        print('x', x)
         axes = self.get_event_axes(event)
 
         self.move = None
@@ -664,6 +666,7 @@ class MarkerManager(object):
             self.draw_all()
         elif (active_marker != None):
             self.move_linked(axes, x, y)
+            print('moved')
             self.draw_all()
         else:
             return
@@ -722,6 +725,7 @@ class MarkerManager(object):
                     m.update_marker()
 
     def on_draw(self, event):
+        ## i think this event is invoked before the figure is actually drawn
         self.update_all()
         self.draw_all(animated=False)
 
