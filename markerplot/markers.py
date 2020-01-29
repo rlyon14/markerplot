@@ -42,6 +42,7 @@ class Marker(object):
         self.axes2display = self.axes.transAxes.transform
         self.display2data = self.axes.transData.inverted().transform
 
+        self.base_origin = self.display2data((0,0))
         self.lines = []
 
         ## keep track of all lines we want to add markers to
@@ -87,11 +88,31 @@ class Marker(object):
         ## xlabel only valid if every line has identical x-data, (?? xline might not be valid either ??)
         self.show_xlabel = False if not self.index_mode else self.show_xlabel
 
+        self.set_label_formatter()
         self.create(xd, idx=idx, disp=disp)
 
-    def update_marker(self):
+    def set_label_formatter(self):
+        axes = list(self.axes.marker_linked_axes)
+        for i, (ax,l) in enumerate(self.lines):
+            if ax not in axes:
+                axes.append(ax)
+
+        for ax in axes:
+                
+            xformatter = ax.xaxis.get_major_formatter()
+            yformatter = ax.yaxis.get_major_formatter()
+            
+            if len(xformatter(0)) and not ax.marker_params['ignore_axis_formatter']:
+                ax.marker_params['xformat'] = xformatter
+
+            if len(yformatter(0)) and not ax.marker_params['ignore_axis_formatter']:
+                ax.marker_params['yformat'] = lambda x, y, idx: yformatter(y)
+
+    def update_marker(self, move=True):
         """ updates marker (without drawing on canvas) if the dpi or figure size changes
         """
+        self.renderer = self.axes.figure.canvas.get_renderer()
+
         self.xlabel_pad = self.axes.marker_params['xlabel_pad']
         self.ylabel_xpad = self.axes.marker_params['ylabel_xpad']
         self.ylabel_ypad = self.axes.marker_params['ylabel_ypad']
@@ -105,13 +126,16 @@ class Marker(object):
         for i, (ax,l) in enumerate(self.lines):
             l.xy = self.data2display(ax, l.get_xydata())
 
-        self.move_to_point(self.xdpoint, idx=self.xidx[0])
+        self.base_origin = self.display2data((0,0))
+        print(self.base_origin)
+
+        if move:
+            self.move_to_point(self.xdpoint, idx=self.xidx[0])
+
+        return self.base_origin
 
     def find_nearest_xdpoint(self, xd=None, disp=None):
         mline, xdpoint, mdist = None, 0, np.inf
-
-        if disp != None:
-            x, y = disp
 
         for ax, l in self.lines:
             if self.show_xline:
@@ -300,6 +324,11 @@ class Marker(object):
             self.xtext.set_position((xpos, ypos))
 
     def move_to_point(self, xd=None, disp=None, idx=None):
+        
+        origin = self.axes.transData.inverted().transform((0,0))
+
+        # if not np.all(origin == self.base_origin):
+        #     self.update_marker(move=False)
 
         if not self.index_mode:
             mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
@@ -327,7 +356,7 @@ class Marker(object):
         self.xtext.set_text(txt)
 
         ## xlabel placement
-        self.renderer = self.axes.figure.canvas.get_renderer()
+        #self.renderer = self.axes.figure.canvas.get_renderer()
         xtext_dim = self.xtext.get_window_extent(self.renderer)
         x0, y0 = self.axes2display((0,0))
 
@@ -353,7 +382,6 @@ class Marker(object):
             ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
             xl, yl = self.data2display(ax, (xd, yd))
-            print(yl)
 
             if (not np.isfinite(yd)):
                 self.ytext[i].set_visible(False)
@@ -605,7 +633,6 @@ class MarkerManager(object):
         axes = self.get_event_axes(event)
         if axes == None:
             return
-
         if axes.marker_active == None:
             return
         elif event.key == 'shift':
@@ -619,6 +646,9 @@ class MarkerManager(object):
         elif(event.key == 'delete'):
             self.delete_linked(axes)
             self.draw_all()
+        elif(event.key == 'f5'):
+            self.update_all()
+            self.draw_all(animated=False)
 
     def onmotion(self, event):
         x = event.x
@@ -647,7 +677,6 @@ class MarkerManager(object):
     def onrelease(self, event):
         x = event.x
         y = event.y
-        print('x', x)
         axes = self.get_event_axes(event)
 
         self.move = None
@@ -666,7 +695,6 @@ class MarkerManager(object):
             self.draw_all()
         elif (active_marker != None):
             self.move_linked(axes, x, y)
-            print('moved')
             self.draw_all()
         else:
             return
@@ -725,8 +753,17 @@ class MarkerManager(object):
                     m.update_marker()
 
     def on_draw(self, event):
-        ## i think this event is invoked before the figure is actually drawn
+        ## if constrained_layout or automatic tight_layout is on, the axes may automatically move/resize 
+        ## when we draw the markers.
+        ## this forces us to draw the markers twice to correct for the axes potentially resizing after the first draw.
+        
+        ## draw until origin stops moving
         self.update_all()
         self.draw_all(animated=False)
+        self.update_all()
+        self.draw_all(animated=False)
+        self.update_all()
+        self.draw_all(animated=False)
+
 
 

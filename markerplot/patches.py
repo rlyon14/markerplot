@@ -12,21 +12,29 @@ import matplotlib
 ####################
 ## Axes Patches ##
 ####################
+
 def marker_add(self, xd=None, idx=None, disp=None):
     """ add new marker at a given x data value, index value or display coordinate, and set as the
         axes active marker
 
         Parameters
         ----------
-            xd: (float) x-value in data coordinates
+            xd: (float, list) x-value in data coordinates
+            idx: (int, list) index of x-data (ignored if axes data lines have unequal xdata arrays)
             disp: (tuple) x,y value in axes display cordinates
-            idx: (int) index of x-data (ignored if axes data lines have unequal xdata arrays)
     """
-    new_marker = Marker(self.axes, xd=xd, idx=idx, disp=disp)
+    if isinstance(xd, (list, tuple, np.ndarray)):
+        for x in xd:
+            self.markers.append(Marker(self.axes, xd=x))
     
-    self.markers.append(new_marker)
-    self.marker_active = new_marker
-    return new_marker
+    elif isinstance(idx, (list, tuple, np.ndarray)):
+        for i in idx:
+            self.markers.append(Marker(self.axes, idx=i))
+    else:
+        self.markers.append(Marker(self.axes, xd=xd, idx=idx, disp=disp))
+
+    self.marker_active = self.markers[-1]
+    return self.marker_active
 
 def marker_delete(self, marker):
     """ remove marker from axes
@@ -123,6 +131,7 @@ def marker_enable(self, interactive=True, top_axes=None, **marker_params):
         xlabel_pad = 6,
         ylabel_xpad = 10,
         ylabel_ypad = 4,
+        ignore_axis_formatter = False
     )
 
     default_params.update(dict(**marker_params))
