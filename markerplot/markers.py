@@ -88,29 +88,7 @@ class Marker(object):
         ## xlabel only valid if every line has identical x-data, (?? xline might not be valid either ??)
         self.show_xlabel = False if not self.index_mode else self.show_xlabel
 
-        self.set_label_formatter()
         self.create(xd, idx=idx, disp=disp)
-
-    def set_label_formatter(self):
-        axes = list(self.axes.marker_linked_axes)
-        for i, (ax,l) in enumerate(self.lines):
-            if ax not in axes:
-                axes.append(ax)
-
-        for ax in axes:
-                
-            xformatter = ax.xaxis.get_major_formatter()
-            yformatter = ax.yaxis.get_major_formatter()
-            
-            if len(xformatter(0)) > 1 and ax.marker_params['inherit_ticker']:
-                ax.marker_xformat = xformatter
-            else:
-                ax.marker_xformat = ax.marker_params['xformat']
-
-            if len(yformatter(0)) > 1 and ax.marker_params['inherit_ticker']:
-                ax.marker_yformat = lambda x, y, idx: yformatter(y)
-            else:
-                ax.marker_yformat = ax.marker_params['yformat']
 
     def update_marker(self, move=True):
         """ updates marker (without drawing on canvas) if the dpi or figure size changes
@@ -331,7 +309,6 @@ class Marker(object):
         origin = list(self.axes.transData.inverted().transform((0,0)))
 
         if not np.all(origin == self.base_origin):
-            print('force update')
             self.update_marker(move=False)
 
         if not self.index_mode:
@@ -355,12 +332,11 @@ class Marker(object):
         xl, yl = self.data2display(self.axes, (self.xdpoint, 0))
 
         ## xlabel text
-        txt = self.axes.marker_xformat(self.xdpoint)
+        txt = self.axes._marker_xformat(self.xdpoint)
 
         self.xtext.set_text(txt)
 
         ## xlabel placement
-        #self.renderer = self.axes.figure.canvas.get_renderer()
         xtext_dim = self.xtext.get_window_extent(self.renderer)
         x0, y0 = self.axes2display((0,0))
 
@@ -396,7 +372,7 @@ class Marker(object):
                 self.ydot[i].set_data([xd], [yd])
 
                 ## ylabel text
-                txt = ax.marker_yformat(xd, yd, idx=self.xidx[i])
+                txt = ax._marker_yformat(xd, yd, idx=self.xidx[i])
 
                 self.ytext[i].set_text(txt)
         
@@ -754,10 +730,6 @@ class MarkerManager(object):
         for ax in self.fig.axes:
             for m in ax.markers:
                 old_origins = np.append(old_origins, [m.base_origin], axis=0)
-            # for l_ax in ax.marker_linked_axes:
-            #     for m in l_ax.markers:
-            #         print('o', m.base_origin)
-            #         #origins = np.append(old_origins, [m.base_origin], axis=0)
 
         new_origins = np.zeros(shape=(1,2))
         for ax in self.fig.axes:
@@ -766,18 +738,14 @@ class MarkerManager(object):
             for l_ax in ax.marker_linked_axes:
                 for m in l_ax.markers:
                     m.update_marker()
-                    #new_origins = np.append(new_origins, [m.update_marker()], axis=0)
-                    #print('b', m.base_origin)
-        # print(old_origins)
-        # print()
-        # print(new_origins)
+
         return np.all(old_origins == new_origins)
 
     def on_draw(self, event):
         ## if constrained_layout or automatic tight_layout is on, the axes may automatically move/resize 
-        ## after we draw the markers.
+        ## during the screen update and invalidate the text label positions
         
-        ## draw until origin stops moving
+        ## draw until axes origin stops moving until I find a better way to do this
         max_draw = 10
         identical = False
         draw = 0
@@ -787,7 +755,6 @@ class MarkerManager(object):
             draw += 1
             if draw > max_draw:
                 break
-        print(draw)
 
 
 

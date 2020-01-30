@@ -44,8 +44,8 @@ theta = 2 * np.pi * r
 axes.plot(x1 * (np.pi/180), y2, label='test')
 #axes.plot(x1 * (np.pi/180), y2, label='test')
 
-#axes.marker_add(0)
-#fig.savefig(dir_/ 'test.png', dpi=330)
+axes.marker_add(0)
+fig.savefig(dir_/ 'test.png', dpi=330)
 #fig2pptx(dir_ / r'test.pptx', close_plots=False)
 
 #axes.axvline(np.pi, linewidth=0.5, color='r')

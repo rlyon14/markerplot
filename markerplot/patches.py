@@ -5,6 +5,7 @@ from matplotlib.artist import Artist
 from matplotlib.lines import Line2D
 from matplotlib.figure import Figure
 from . markers import MarkerManager, Marker
+from matplotlib import ticker
 
 import gorilla
 import matplotlib
@@ -78,6 +79,23 @@ def marker_link(self, *axes, byindex=False):
         ax.marker_linked_axes.append(self)
         ax._force_index_mode = byindex
 
+def _marker_yformat(self, xd, yd, idx=None):
+    yformatter = self.yaxis.get_major_formatter()
+
+    if not isinstance(yformatter, ticker.ScalarFormatter) and self.marker_params['inherit_ticker']:
+        return yformatter(yd)
+    else:
+        return self.marker_params['yformat'](xd, yd, idx=idx)
+
+
+def _marker_xformat(self, xd):
+    xformatter = self.xaxis.get_major_formatter()
+
+    if not isinstance(xformatter, ticker.ScalarFormatter) and self.marker_params['inherit_ticker']:
+        return xformatter(xd)
+    else:
+        return self.marker_params['xformat'](xd)
+
 ##############
 ############## 
 
@@ -137,7 +155,7 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
     default_params.update(dict(**marker_params))
 
     for ax in self.axes:
-        ax.markers =[]
+        ax.markers = []
         ax.marker_params = dict(**default_params)
         ax.marker_ignorelines = []
         ax.marker_active = None
@@ -161,7 +179,15 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
             patch = gorilla.Patch(ax.__class__, 'marker_link', marker_link)
             gorilla.apply(patch)
 
-    if link_all:
+            patch = gorilla.Patch(ax.__class__, '_marker_xformat', _marker_xformat)
+            gorilla.apply(patch)
+
+            patch = gorilla.Patch(ax.__class__, '_marker_yformat', _marker_yformat)
+            gorilla.apply(patch)
+
+
+    ## link all axes together in figure
+    if link_all: 
         for ax in self.axes:
             ax.marker_link(*self.axes)
 
