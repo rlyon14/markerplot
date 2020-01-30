@@ -118,6 +118,9 @@ class Marker(object):
     def find_nearest_xdpoint(self, xd=None, disp=None):
         mline, xdpoint, mdist = None, 0, np.inf
 
+        if disp != None:
+            x, y = disp
+            
         for ax, l in self.lines:
             if self.show_xline:
                 if disp != None:
