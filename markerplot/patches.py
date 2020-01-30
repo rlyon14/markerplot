@@ -72,7 +72,7 @@ def marker_link(self, *axes, byindex=False):
     axes = list(axes)
     self._force_index_mode = byindex
     for ax in axes:
-        if ax in self.marker_linked_axes:
+        if ax in self.marker_linked_axes or ax == self:
             continue
         self.marker_linked_axes.append(ax)
         ax.marker_linked_axes.append(self)
@@ -85,7 +85,7 @@ def marker_link(self, *axes, byindex=False):
 ####################
 ## Figure Patches ##
 ####################
-def marker_enable(self, interactive=True, top_axes=None, **marker_params):
+def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marker_params):
     """ enable markers on all child axes of figure
 
         Parameters
@@ -131,7 +131,7 @@ def marker_enable(self, interactive=True, top_axes=None, **marker_params):
         xlabel_pad = 6,
         ylabel_xpad = 10,
         ylabel_ypad = 4,
-        ignore_axis_formatter = False
+        inherit_ticker = True
     )
 
     default_params.update(dict(**marker_params))
@@ -160,6 +160,10 @@ def marker_enable(self, interactive=True, top_axes=None, **marker_params):
 
             patch = gorilla.Patch(ax.__class__, 'marker_link', marker_link)
             gorilla.apply(patch)
+
+    if link_all:
+        for ax in self.axes:
+            ax.marker_link(*self.axes)
 
 ##############
 ##############

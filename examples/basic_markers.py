@@ -3,7 +3,7 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from fig2pptx import fig2pptx
+#from fig2pptx import fig2pptx
 #import rftools
 import markerplot
 from matplotlib import ticker
@@ -16,10 +16,9 @@ fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10,5), constrained_layout=Tru
 ax1.grid(linewidth=0.5, linestyle='-')
 ax2.grid(linewidth=0.5, linestyle='-')
 
-fig.marker_enable(show_xline=True, show_xlabel=True, wrap=True, ignore_axis_formatter=False)
+fig.marker_enable(show_xline=True, show_xlabel=True, wrap=True, inherit_ticker=True, link_all=True)
 
 ## link all markers between ax1 and ax2 (interactive only)
-#ax1.marker_link(ax2)
 
 x1 = np.linspace(-2*np.pi, 2*np.pi, 100)
 x2 = np.linspace(-6*np.pi, 6*np.pi, 100)

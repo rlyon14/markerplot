@@ -42,7 +42,7 @@ class Marker(object):
         self.axes2display = self.axes.transAxes.transform
         self.display2data = self.axes.transData.inverted().transform
 
-        self.base_origin = self.display2data((0,0))
+        self.base_origin = list(self.display2data((0,0)))
         self.lines = []
 
         ## keep track of all lines we want to add markers to
@@ -102,11 +102,15 @@ class Marker(object):
             xformatter = ax.xaxis.get_major_formatter()
             yformatter = ax.yaxis.get_major_formatter()
             
-            if len(xformatter(0)) and not ax.marker_params['ignore_axis_formatter']:
-                ax.marker_params['xformat'] = xformatter
+            if len(xformatter(0)) > 1 and ax.marker_params['inherit_ticker']:
+                ax.marker_xformat = xformatter
+            else:
+                ax.marker_xformat = ax.marker_params['xformat']
 
-            if len(yformatter(0)) and not ax.marker_params['ignore_axis_formatter']:
-                ax.marker_params['yformat'] = lambda x, y, idx: yformatter(y)
+            if len(yformatter(0)) > 1 and ax.marker_params['inherit_ticker']:
+                ax.marker_yformat = lambda x, y, idx: yformatter(y)
+            else:
+                ax.marker_yformat = ax.marker_params['yformat']
 
     def update_marker(self, move=True):
         """ updates marker (without drawing on canvas) if the dpi or figure size changes
@@ -126,8 +130,7 @@ class Marker(object):
         for i, (ax,l) in enumerate(self.lines):
             l.xy = self.data2display(ax, l.get_xydata())
 
-        self.base_origin = self.display2data((0,0))
-        print(self.base_origin)
+        self.base_origin = list(self.display2data((0,0)))
 
         if move:
             self.move_to_point(self.xdpoint, idx=self.xidx[0])
@@ -325,10 +328,11 @@ class Marker(object):
 
     def move_to_point(self, xd=None, disp=None, idx=None):
         
-        origin = self.axes.transData.inverted().transform((0,0))
+        origin = list(self.axes.transData.inverted().transform((0,0)))
 
-        # if not np.all(origin == self.base_origin):
-        #     self.update_marker(move=False)
+        if not np.all(origin == self.base_origin):
+            print('force update')
+            self.update_marker(move=False)
 
         if not self.index_mode:
             mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
@@ -351,7 +355,7 @@ class Marker(object):
         xl, yl = self.data2display(self.axes, (self.xdpoint, 0))
 
         ## xlabel text
-        txt = self.axes.marker_params['xformat'](self.xdpoint)
+        txt = self.axes.marker_xformat(self.xdpoint)
 
         self.xtext.set_text(txt)
 
@@ -392,7 +396,7 @@ class Marker(object):
                 self.ydot[i].set_data([xd], [yd])
 
                 ## ylabel text
-                txt = ax.marker_params['yformat'](xd, yd, idx=self.xidx[i])
+                txt = ax.marker_yformat(xd, yd, idx=self.xidx[i])
 
                 self.ytext[i].set_text(txt)
         
@@ -695,7 +699,7 @@ class MarkerManager(object):
             self.draw_all()
         elif (active_marker != None):
             self.move_linked(axes, x, y)
-            self.draw_all()
+            self.draw_active_marker(axes)
         else:
             return
         
@@ -731,6 +735,7 @@ class MarkerManager(object):
         self.set_active_animated()
 
     def update_canvas(self):
+        ##TODO: update display for twinx axes
         for ax in self.fig.axes:
             ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
             for l_ax in ax.marker_linked_axes:
@@ -744,26 +749,46 @@ class MarkerManager(object):
         self.ciddraw = self.fig.canvas.mpl_connect('draw_event', self.on_draw)
 
     def update_all(self):
-        ##TODO: update display for twinx axes
+        
+        old_origins = np.zeros(shape=(1,2))
         for ax in self.fig.axes:
             for m in ax.markers:
-                m.update_marker()
+                old_origins = np.append(old_origins, [m.base_origin], axis=0)
+            # for l_ax in ax.marker_linked_axes:
+            #     for m in l_ax.markers:
+            #         print('o', m.base_origin)
+            #         #origins = np.append(old_origins, [m.base_origin], axis=0)
+
+        new_origins = np.zeros(shape=(1,2))
+        for ax in self.fig.axes:
+            for m in ax.markers:
+                new_origins = np.append(new_origins, [m.update_marker()], axis=0)
             for l_ax in ax.marker_linked_axes:
                 for m in l_ax.markers:
                     m.update_marker()
+                    #new_origins = np.append(new_origins, [m.update_marker()], axis=0)
+                    #print('b', m.base_origin)
+        # print(old_origins)
+        # print()
+        # print(new_origins)
+        return np.all(old_origins == new_origins)
 
     def on_draw(self, event):
         ## if constrained_layout or automatic tight_layout is on, the axes may automatically move/resize 
-        ## when we draw the markers.
-        ## this forces us to draw the markers twice to correct for the axes potentially resizing after the first draw.
+        ## after we draw the markers.
         
         ## draw until origin stops moving
-        self.update_all()
-        self.draw_all(animated=False)
-        self.update_all()
-        self.draw_all(animated=False)
-        self.update_all()
-        self.draw_all(animated=False)
+        max_draw = 10
+        identical = False
+        draw = 0
+        while not identical:
+            identical = self.update_all()
+            self.draw_all(animated=False)
+            draw += 1
+            if draw > max_draw:
+                break
+        print(draw)
+
 
 
 
