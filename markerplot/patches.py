@@ -14,7 +14,7 @@ import matplotlib
 ## Axes Patches ##
 ####################
 
-def marker_add(self, xd=None, idx=None, disp=None):
+def marker_add(self, xd=None, idx=None, disp=None, lines=None):
     """ add new marker at a given x data value, index value or display coordinate, and set as the
         axes active marker
 
@@ -23,16 +23,18 @@ def marker_add(self, xd=None, idx=None, disp=None):
             xd: (float, list) x-value in data coordinates
             idx: (int, list) index of x-data (ignored if axes data lines have unequal xdata arrays)
             disp: (tuple) x,y value in axes display cordinates
+            lines: (list, tuple, np.ndarray) lines to place markers on
+                    if lines is not provided, markers will be placed on all lines on the axes
     """
     if isinstance(xd, (list, tuple, np.ndarray)):
         for x in xd:
-            self.markers.append(Marker(self.axes, xd=x))
+            self.markers.append(Marker(self.axes, xd=x, lines=lines))
     
     elif isinstance(idx, (list, tuple, np.ndarray)):
         for i in idx:
-            self.markers.append(Marker(self.axes, idx=i))
+            self.markers.append(Marker(self.axes, idx=i, lines=lines))
     else:
-        self.markers.append(Marker(self.axes, xd=xd, idx=idx, disp=disp))
+        self.markers.append(Marker(self.axes, xd=xd, idx=idx, disp=disp, lines=lines))
 
     self.marker_active = self.markers[-1]
     return self.marker_active

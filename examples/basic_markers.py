@@ -21,11 +21,13 @@ fig.marker_enable(show_xline=True, show_xlabel=True, wrap=True, inherit_ticker=T
 
 x1 = np.linspace(-2*np.pi, 2*np.pi, 100)
 
-ax1.plot(x1, np.sin(x1))
+l1 = ax1.plot(x1, np.sin(x1))
+ax1.plot(x1, np.cos(x1))
+print(l1)
 ax2.plot(x1, np.sin(x1))
 ax3.plot(x1, np.cos(x1))
 
-ax1.marker_add(xd=2)
+ax1.marker_add(xd=2, lines=l1)
 ax2.marker_add(xd=2)
 ax3.marker_add(xd=2)
 

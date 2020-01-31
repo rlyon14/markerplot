@@ -11,7 +11,7 @@ from threading import Timer, Semaphore
 
 class Marker(object):
     
-    def __init__(self, axes, xd=None, idx=None, disp=None):
+    def __init__(self, axes, xd=None, idx=None, disp=None, lines=None):
         """ create marker on axes at a given x data value, data index value or display coordinate
 
             Parameters
@@ -45,18 +45,26 @@ class Marker(object):
         self.base_origin = list(self.display2data((0,0)))
         self.lines = []
 
-        ## keep track of all lines we want to add markers to
-        for l in self.axes.lines:
-            if (l not in self.axes.marker_ignorelines):
-                self.lines.append((self.axes, l))
+        if np.any(lines):
+            ## use lines if provided
+            if not isinstance(lines, (tuple, list, np.ndarray)):
+                lines = [lines]
+            for l in lines:
+                self.lines.append((l.axes, l))
 
-        ## get lines from any shared axes
-        for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
-            if ax == self.axes:
-                continue
-            for l in ax.lines:
-                if (l not in ax.marker_ignorelines) and (l not in self.axes.marker_ignorelines):
-                    self.lines.append((ax,l))
+        else:
+            ## get all lines from axes
+            for l in self.axes.lines:
+                if (l not in self.axes.marker_ignorelines):
+                    self.lines.append((self.axes, l))
+
+            ## get lines from any shared axes
+            for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
+                if ax == self.axes:
+                    continue
+                for l in ax.lines:
+                    if (l not in ax.marker_ignorelines) and (l not in self.axes.marker_ignorelines):
+                        self.lines.append((ax,l))
         
         self.ydot = [None]*len(self.lines)
         self.ytext = [None]*len(self.lines)
