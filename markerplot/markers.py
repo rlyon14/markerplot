@@ -736,8 +736,9 @@ class MarkerManager(object):
         self.ciddraw = self.fig.canvas.mpl_connect('draw_event', self.on_draw)
 
     def update_all(self):
-        
+        error_threshold = 1
         old_origins = np.zeros(shape=(1,2))
+        
         for ax in self.fig.axes:
             for m in ax.markers:
                 old_origins = np.append(old_origins, [m.base_origin], axis=0)
@@ -750,18 +751,23 @@ class MarkerManager(object):
                 for m in l_ax.markers:
                     m.update_marker()
 
-        return np.all(old_origins == new_origins)
+        diff = np.max(np.abs(old_origins - new_origins))
+        return diff < error_threshold
+
 
     def on_draw(self, event):
         ## if constrained_layout or automatic tight_layout is on, the axes may automatically move/resize 
         ## during the screen update and invalidate the text label positions
         
-        ## draw until axes origin stops moving until I find a better way to do this
+        ## draw until axes origin stops moving
         max_draw = 10
         identical = False
+        prev = False
         draw = 0
         while not identical:
-            identical = self.update_all()
+            origins = self.update_all()
+            identical = origins and prev
+            prev = origins
             self.draw_all(animated=False)
             draw += 1
             if draw > max_draw:
