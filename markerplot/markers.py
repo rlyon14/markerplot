@@ -93,9 +93,6 @@ class Marker(object):
 
         self.index_mode = np.all(xcheck == xcheck[0,:]) if not self.axes._force_index_mode else True
 
-        ## xlabel only valid if every line has identical x-data, (?? xline might not be valid either ??)
-        self.show_xlabel = False if not self.index_mode else self.show_xlabel
-
         self.create(xd, idx=idx, disp=disp)
 
     def update_marker(self, move=True):
