@@ -83,20 +83,22 @@ def marker_link(self, *axes, byindex=False):
 
 def _marker_yformat(self, xd, yd, idx=None):
     yformatter = self.yaxis.get_major_formatter()
-
-    if not isinstance(yformatter, ticker.ScalarFormatter) and self.marker_params['inherit_ticker']:
+    if self.marker_params['yformat'] != None:
+        return self.marker_params['yformat'](xd, yd, idx=idx)
+    elif not isinstance(yformatter, (ticker.ScalarFormatter, ticker.FixedFormatter)) and self.marker_params['inherit_ticker']:
         return yformatter(yd)
     else:
-        return self.marker_params['yformat'](xd, yd, idx=idx)
+        return '{:.3f}'.format(yd)
 
 
 def _marker_xformat(self, xd):
     xformatter = self.xaxis.get_major_formatter()
-
-    if not isinstance(xformatter, ticker.ScalarFormatter) and self.marker_params['inherit_ticker']:
+    if self.marker_params['xformat'] != None:
+        return self.marker_params['xformat'](xd)
+    elif not isinstance(xformatter, (ticker.ScalarFormatter, ticker.FixedFormatter)) and self.marker_params['inherit_ticker']:
         return xformatter(xd)
     else:
-        return self.marker_params['xformat'](xd)
+        return '{:.3f}'.format(xd)
 
 ##############
 ############## 
@@ -142,8 +144,8 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
     default_params = dict(
         show_xline=True,
         show_dot=True,
-        yformat= lambda x, y, idx: '{:.3f}'.format(y),
-        xformat= lambda x: '{:.3f}'.format(x),
+        yformat= None,
+        xformat= None,
         show_xlabel=False,
         xreversed=False, 
         alpha=0.7,

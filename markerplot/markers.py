@@ -344,7 +344,6 @@ class Marker(object):
 
         ## xlabel text
         txt = self.axes._marker_xformat(self.xdpoint)
-
         self.xtext.set_text(txt)
 
         ## xlabel placement
