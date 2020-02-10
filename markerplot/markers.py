@@ -5,13 +5,13 @@ import numpy as np
 from matplotlib.artist import Artist
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from time import time
+from time import time, sleep
 from threading import Timer, Semaphore
 ##
 
 class Marker(object):
     
-    def __init__(self, axes, xd=None, idx=None, disp=None):
+    def __init__(self, axes, xd=None, idx=None, disp=None, lines=None):
         """ create marker on axes at a given x data value, data index value or display coordinate
 
             Parameters
@@ -42,20 +42,29 @@ class Marker(object):
         self.axes2display = self.axes.transAxes.transform
         self.display2data = self.axes.transData.inverted().transform
 
+        self.base_origin = list(self.display2data((0,0)))
         self.lines = []
 
-        ## keep track of all lines we want to add markers to
-        for l in self.axes.lines:
-            if (l not in self.axes.marker_ignorelines):
-                self.lines.append((self.axes, l))
+        if np.any(lines):
+            ## use lines if provided
+            if not isinstance(lines, (tuple, list, np.ndarray)):
+                lines = [lines]
+            for l in lines:
+                self.lines.append((l.axes, l))
 
-        ## get lines from any shared axes
-        for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
-            if ax == self.axes:
-                continue
-            for l in ax.lines:
-                if (l not in ax.marker_ignorelines) and (l not in self.axes.marker_ignorelines):
-                    self.lines.append((ax,l))
+        else:
+            ## get all lines from axes
+            for l in self.axes.lines:
+                if (l not in self.axes.marker_ignorelines):
+                    self.lines.append((self.axes, l))
+
+            ## get lines from any shared axes
+            for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
+                if ax == self.axes:
+                    continue
+                for l in ax.lines:
+                    if (l not in ax.marker_ignorelines) and (l not in self.axes.marker_ignorelines):
+                        self.lines.append((ax,l))
         
         self.ydot = [None]*len(self.lines)
         self.ytext = [None]*len(self.lines)
@@ -84,14 +93,13 @@ class Marker(object):
 
         self.index_mode = np.all(xcheck == xcheck[0,:]) if not self.axes._force_index_mode else True
 
-        ## xlabel only valid if every line has identical x-data, (?? xline might not be valid either ??)
-        self.show_xlabel = False if not self.index_mode else self.show_xlabel
-
         self.create(xd, idx=idx, disp=disp)
 
-    def update_marker(self):
+    def update_marker(self, move=True):
         """ updates marker (without drawing on canvas) if the dpi or figure size changes
         """
+        self.renderer = self.axes.figure.canvas.get_renderer()
+
         self.xlabel_pad = self.axes.marker_params['xlabel_pad']
         self.ylabel_xpad = self.axes.marker_params['ylabel_xpad']
         self.ylabel_ypad = self.axes.marker_params['ylabel_ypad']
@@ -105,14 +113,19 @@ class Marker(object):
         for i, (ax,l) in enumerate(self.lines):
             l.xy = self.data2display(ax, l.get_xydata())
 
-        self.move_to_point(self.xdpoint, idx=self.xidx[0])
+        self.base_origin = list(self.display2data((0,0)))
+
+        if move:
+            self.move_to_point(self.xdpoint, idx=self.xidx[0])
+
+        return self.base_origin
 
     def find_nearest_xdpoint(self, xd=None, disp=None):
         mline, xdpoint, mdist = None, 0, np.inf
 
         if disp != None:
             x, y = disp
-
+            
         for ax, l in self.lines:
             if self.show_xline:
                 if disp != None:
@@ -300,6 +313,11 @@ class Marker(object):
             self.xtext.set_position((xpos, ypos))
 
     def move_to_point(self, xd=None, disp=None, idx=None):
+        
+        origin = list(self.axes.transData.inverted().transform((0,0)))
+
+        if not np.all(origin == self.base_origin):
+            self.update_marker(move=False)
 
         if not self.index_mode:
             mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
@@ -322,12 +340,10 @@ class Marker(object):
         xl, yl = self.data2display(self.axes, (self.xdpoint, 0))
 
         ## xlabel text
-        txt = self.axes.marker_params['xformat'](self.xdpoint)
-
+        txt = self.axes._marker_xformat(self.xdpoint)
         self.xtext.set_text(txt)
 
         ## xlabel placement
-        self.renderer = self.axes.figure.canvas.get_renderer()
         xtext_dim = self.xtext.get_window_extent(self.renderer)
         x0, y0 = self.axes2display((0,0))
 
@@ -363,7 +379,7 @@ class Marker(object):
                 self.ydot[i].set_data([xd], [yd])
 
                 ## ylabel text
-                txt = ax.marker_params['yformat'](xd, yd, idx=self.xidx[i])
+                txt = ax._marker_yformat(xd, yd, idx=self.xidx[i])
 
                 self.ytext[i].set_text(txt)
         
@@ -604,7 +620,6 @@ class MarkerManager(object):
         axes = self.get_event_axes(event)
         if axes == None:
             return
-
         if axes.marker_active == None:
             return
         elif event.key == 'shift':
@@ -618,6 +633,9 @@ class MarkerManager(object):
         elif(event.key == 'delete'):
             self.delete_linked(axes)
             self.draw_all()
+        elif(event.key == 'f5'):
+            self.update_all()
+            self.draw_all(animated=False)
 
     def onmotion(self, event):
         x = event.x
@@ -664,7 +682,7 @@ class MarkerManager(object):
             self.draw_all()
         elif (active_marker != None):
             self.move_linked(axes, x, y)
-            self.draw_all()
+            self.draw_active_marker(axes)
         else:
             return
         
@@ -700,6 +718,7 @@ class MarkerManager(object):
         self.set_active_animated()
 
     def update_canvas(self):
+        ##TODO: update display for twinx axes
         for ax in self.fig.axes:
             ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
             for l_ax in ax.marker_linked_axes:
@@ -713,16 +732,43 @@ class MarkerManager(object):
         self.ciddraw = self.fig.canvas.mpl_connect('draw_event', self.on_draw)
 
     def update_all(self):
-        ##TODO: update display for twinx axes
+        error_threshold = 1
+        old_origins = np.zeros(shape=(1,2))
+        
         for ax in self.fig.axes:
             for m in ax.markers:
-                m.update_marker()
+                old_origins = np.append(old_origins, [m.base_origin], axis=0)
+
+        new_origins = np.zeros(shape=(1,2))
+        for ax in self.fig.axes:
+            for m in ax.markers:
+                new_origins = np.append(new_origins, [m.update_marker()], axis=0)
             for l_ax in ax.marker_linked_axes:
                 for m in l_ax.markers:
                     m.update_marker()
 
+        diff = np.max(np.abs(old_origins - new_origins))
+        return diff < error_threshold
+
+
     def on_draw(self, event):
-        self.update_all()
-        self.draw_all(animated=False)
+        ## if constrained_layout or automatic tight_layout is on, the axes may automatically move/resize 
+        ## during the screen update and invalidate the text label positions
+        
+        ## draw until axes origin stops moving
+        max_draw = 10
+        identical = False
+        prev = False
+        draw = 0
+        while not identical:
+            origins = self.update_all()
+            identical = origins and prev
+            prev = origins
+            self.draw_all(animated=False)
+            draw += 1
+            if draw > max_draw:
+                break
+
+
 
 

@@ -5,6 +5,7 @@ from matplotlib.artist import Artist
 from matplotlib.lines import Line2D
 from matplotlib.figure import Figure
 from . markers import MarkerManager, Marker
+from matplotlib import ticker
 
 import gorilla
 import matplotlib
@@ -12,21 +13,31 @@ import matplotlib
 ####################
 ## Axes Patches ##
 ####################
-def marker_add(self, xd=None, idx=None, disp=None):
+
+def marker_add(self, xd=None, idx=None, disp=None, lines=None):
     """ add new marker at a given x data value, index value or display coordinate, and set as the
         axes active marker
 
         Parameters
         ----------
-            xd: (float) x-value in data coordinates
+            xd: (float, list) x-value in data coordinates
+            idx: (int, list) index of x-data (ignored if axes data lines have unequal xdata arrays)
             disp: (tuple) x,y value in axes display cordinates
-            idx: (int) index of x-data (ignored if axes data lines have unequal xdata arrays)
+            lines: (list, tuple, np.ndarray) lines to place markers on
+                    if lines is not provided, markers will be placed on all lines on the axes
     """
-    new_marker = Marker(self.axes, xd=xd, idx=idx, disp=disp)
+    if isinstance(xd, (list, tuple, np.ndarray)):
+        for x in xd:
+            self.markers.append(Marker(self.axes, xd=x, lines=lines))
     
-    self.markers.append(new_marker)
-    self.marker_active = new_marker
-    return new_marker
+    elif isinstance(idx, (list, tuple, np.ndarray)):
+        for i in idx:
+            self.markers.append(Marker(self.axes, idx=i, lines=lines))
+    else:
+        self.markers.append(Marker(self.axes, xd=xd, idx=idx, disp=disp, lines=lines))
+
+    self.marker_active = self.markers[-1]
+    return self.marker_active
 
 def marker_delete(self, marker):
     """ remove marker from axes
@@ -64,11 +75,30 @@ def marker_link(self, *axes, byindex=False):
     axes = list(axes)
     self._force_index_mode = byindex
     for ax in axes:
-        if ax in self.marker_linked_axes:
+        if ax in self.marker_linked_axes or ax == self:
             continue
         self.marker_linked_axes.append(ax)
         ax.marker_linked_axes.append(self)
         ax._force_index_mode = byindex
+
+def _marker_yformat(self, xd, yd, idx=None):
+    yformatter = self.yaxis.get_major_formatter()
+    if self.marker_params['yformat'] != None:
+        return self.marker_params['yformat'](xd, yd, idx=idx)
+    elif not isinstance(yformatter, (ticker.ScalarFormatter, ticker.FixedFormatter)) and self.marker_params['inherit_ticker']:
+        return yformatter(yd)
+    else:
+        return '{:.3f}'.format(yd)
+
+
+def _marker_xformat(self, xd):
+    xformatter = self.xaxis.get_major_formatter()
+    if self.marker_params['xformat'] != None:
+        return self.marker_params['xformat'](xd)
+    elif not isinstance(xformatter, (ticker.ScalarFormatter, ticker.FixedFormatter)) and self.marker_params['inherit_ticker']:
+        return xformatter(xd)
+    else:
+        return '{:.3f}'.format(xd)
 
 ##############
 ############## 
@@ -77,7 +107,7 @@ def marker_link(self, *axes, byindex=False):
 ####################
 ## Figure Patches ##
 ####################
-def marker_enable(self, interactive=True, top_axes=None, **marker_params):
+def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marker_params):
     """ enable markers on all child axes of figure
 
         Parameters
@@ -114,8 +144,8 @@ def marker_enable(self, interactive=True, top_axes=None, **marker_params):
     default_params = dict(
         show_xline=True,
         show_dot=True,
-        yformat= lambda x, y, idx: '{:.3f}'.format(y),
-        xformat= lambda x: '{:.3f}'.format(x),
+        yformat= None,
+        xformat= None,
         show_xlabel=False,
         xreversed=False, 
         alpha=0.7,
@@ -123,12 +153,13 @@ def marker_enable(self, interactive=True, top_axes=None, **marker_params):
         xlabel_pad = 6,
         ylabel_xpad = 10,
         ylabel_ypad = 4,
+        inherit_ticker = True
     )
 
     default_params.update(dict(**marker_params))
 
     for ax in self.axes:
-        ax.markers =[]
+        ax.markers = []
         ax.marker_params = dict(**default_params)
         ax.marker_ignorelines = []
         ax.marker_active = None
@@ -151,6 +182,18 @@ def marker_enable(self, interactive=True, top_axes=None, **marker_params):
 
             patch = gorilla.Patch(ax.__class__, 'marker_link', marker_link)
             gorilla.apply(patch)
+
+            patch = gorilla.Patch(ax.__class__, '_marker_xformat', _marker_xformat)
+            gorilla.apply(patch)
+
+            patch = gorilla.Patch(ax.__class__, '_marker_yformat', _marker_yformat)
+            gorilla.apply(patch)
+
+
+    ## link all axes together in figure
+    if link_all: 
+        for ax in self.axes:
+            ax.marker_link(*self.axes)
 
 ##############
 ##############
