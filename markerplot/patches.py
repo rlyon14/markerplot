@@ -58,35 +58,33 @@ def marker_ignore(self, *lines):
     lines = list(lines)
     self.marker_ignorelines += lines
 
-def marker_link(self, *axes, byindex=False):
+def marker_link(self, *axes):
     """ --interactive only--
         links axes together so that any interactive change to markers on axes one is reflected in the other
 
         Parameters
         ----------
             axes: (Axes object) axes that will be linked to current axes (self)
-            byindex: (bool) if True, each marker will be linked by xdata index rather than xdata value
-                     This will force each axes into index mode, meaning every data line must have identical xdata lengths.
 
         Warning: 
         If manual markers are placed in linked axes with axes.marker_add(), interactive markers will fail if the 
         number of markers are not kept equal between linked axes.
     """
     axes = list(axes)
-    self.marker_params['force_index_mode'] = byindex
     for ax in axes:
         if ax in self.marker_linked_axes or ax == self:
             continue
         self.marker_linked_axes.append(ax)
         ax.marker_linked_axes.append(self)
-        ax.marker_params['force_index_mode'] = byindex
 
-def _marker_yformat(self, xd, yd, idx=None):
+def _marker_yformat(self, xd, yd, mxd=None):
     yformatter = self.yaxis.get_major_formatter()
     if self.marker_params['yformat'] != None:
-        return self.marker_params['yformat'](xd, yd, idx=idx)
+        return self.marker_params['yformat'](xd, yd, mxd=mxd)
+
     elif not isinstance(yformatter, (ticker.ScalarFormatter, ticker.FixedFormatter)) and self.marker_params['inherit_ticker']:
         return yformatter(yd)
+
     else:
         return '{:.3f}'.format(yd)
 
@@ -99,6 +97,21 @@ def _marker_xformat(self, xd):
         return xformatter(xd)
     else:
         return '{:.3f}'.format(xd)
+
+def plot(self, *args, **kwargs):
+    mxd = None
+    if 'marker_xd' in kwargs.keys():
+        mxd = kwargs['marker_xd']
+        kwargs.pop('marker_xd')
+
+    original = gorilla.get_original_attribute(self, 'plot')
+    lines = original(*args, **kwargs)
+
+    if np.any(mxd):
+        for l in lines:
+            l._marker_xdata = mxd
+
+    return lines
 
 ##############
 ############## 
@@ -154,7 +167,6 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
         ylabel_xpad = 10,
         ylabel_ypad = 4,
         inherit_ticker = True,
-        force_index_mode = False
     )
 
     default_params.update(dict(**marker_params))
@@ -187,6 +199,10 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
             gorilla.apply(patch)
 
             patch = gorilla.Patch(ax.__class__, '_marker_yformat', _marker_yformat)
+            gorilla.apply(patch)
+
+            settings = gorilla.Settings(allow_hit=True, store_hit=True)
+            patch = gorilla.Patch(ax.__class__, 'plot', plot, settings=settings)
             gorilla.apply(patch)
 
 

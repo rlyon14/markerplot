@@ -78,23 +78,38 @@ class Marker(object):
 
         ## check if all lines have identical x-data
         ## turn on index mode if so. 
+        monotonic_flag = True
         xcheck = np.zeros(shape=(len(self.lines), 3))
         for i, (ax,l) in enumerate(self.lines):
-            xdata = l.get_xdata()
-            xcheck[i] = xdata[0], xdata[-1], len(xdata)
+
+            if not hasattr(l, '_marker_xdata'):
+                l._marker_xdata = l.get_xdata()
+            
+            if monotonic_flag:
+                diff = np.diff(l.get_xdata())
+                monotonic_flag = np.all(diff > 0) or np.all(diff < 0)
+
+            xcheck[i] = l._marker_xdata[0], l._marker_xdata[-1], len(l._marker_xdata)
 
             l.xy = self.data2display(ax, l.get_xydata())
 
         for ax in self.axes.marker_linked_axes:
             for l in ax.lines:
-                if (l not in ax.marker_ignorelines):
-                    xdata = l.get_xdata()
-                    xcheck = np.append(xcheck, [[xdata[0], xdata[-1], len(xdata)]], axis=0)
+                if (l in ax.marker_ignorelines or l in self.axes.marker_ignorelines):
+                    continue
 
-        if self.axes.marker_params['force_index_mode']:
-            self.index_mode = np.all(xcheck[:, 2] == xcheck[0,2]) ## ensure all lengths are the same
-        else:
-            self.index_mode = np.all(xcheck == xcheck[0,:])
+                if not hasattr(l, '_marker_xdata'):
+                    l._marker_xdata = l.get_xdata()
+
+                xdata = l._marker_xdata
+                xcheck = np.append(xcheck, [[xdata[0], xdata[-1], len(xdata)]], axis=0)
+
+        self.index_mode = np.all(xcheck == xcheck[0,:]) 
+
+        if not monotonic_flag:
+            self.index_mode = False
+            self.show_xline = False
+            self.show_xlabel = False
 
         self.create(xd, idx=idx, disp=disp)
 
@@ -133,7 +148,7 @@ class Marker(object):
             if self.show_xline:
                 if disp != None:
                     xd, yd = self.display2data(disp)
-                xl = l.get_xdata()
+                xl = l._marker_xdata
                 if (ax.name == 'polar'):
                     dist = np.full(fill_value=np.inf, shape=(3, len(xl)))
                     dist[0] = np.abs(xl - xd)
@@ -156,13 +171,13 @@ class Marker(object):
                     xl, yl = l.xy[:,0], l.xy[:,1]
                     dist = np.abs(xl - x) + np.abs(yl-y)
                 else:
-                    xl, yl = l.get_data()
+                    xl = l._marker_xdata
                     dist = np.abs(xl - xd)
 
                 xidx_l, mdist_l = np.argmin(dist), np.min(dist)  
             
             if mdist_l < mdist:
-                mline, xdpoint, mdist  = l, l.get_xdata()[int(xidx_l)], mdist_l
+                mline, xdpoint, mdist  = l, l._marker_xdata[int(xidx_l)], mdist_l
 
         return mline, xdpoint
 
@@ -171,11 +186,10 @@ class Marker(object):
         if not self.index_mode:
             if xd == None and disp == None:
                 raise RuntimeError('xdata or display cordinates must be provided if not in index mode')
-
             mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
         else:
             if idx != None:
-                self.xdpoint = self.lines[0][1].get_xdata()[self.xidx[0]]
+                self.xdpoint = self.lines[0][1]._marker_xdata[idx]
             else:
                 mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
 
@@ -205,7 +219,7 @@ class Marker(object):
             if not ax.marker_params['show_dot']:
                 self.ydot[i].set_visible(False)
                 self.ydot[i].set_zorder(0)
-            self.line_xbounds[i] = np.min(l.get_xdata()), np.max(l.get_xdata())
+            self.line_xbounds[i] = np.min(l._marker_xdata), np.max(l._marker_xdata)
 
         ## move objects to current point
         self.move_to_point(xd, disp=disp, idx=idx)
@@ -326,16 +340,14 @@ class Marker(object):
             mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
 
             for i, (ax,l) in enumerate(self.lines):
-                self.xidx[i] = np.argmin(np.abs(l.get_xdata()-self.xdpoint))
-                if l == mline:
-                    self.xdpoint = l.get_xdata()[self.xidx[i]]
+                self.xidx[i] = np.argmin(np.abs(l._marker_xdata-self.xdpoint))
         else:
             if idx == None:
                 mline, self.xdpoint = self.find_nearest_xdpoint(xd, disp=disp)
-                idx = np.argmin(np.abs(mline.get_xdata()-self.xdpoint))
+                idx = np.argmin(np.abs(mline._marker_xdata-self.xdpoint))
             for i, (ax,l) in enumerate(self.lines):
                 self.xidx[i] = idx
-            self.xdpoint = self.lines[0][1].get_xdata()[self.xidx[0]]
+            self.xdpoint = self.lines[0][1]._marker_xdata[self.xidx[0]]
         
         ## vertical line placement
         self.xline.set_xdata([self.xdpoint, self.xdpoint])
@@ -382,7 +394,8 @@ class Marker(object):
                 self.ydot[i].set_data([xd], [yd])
 
                 ## ylabel text
-                txt = ax._marker_yformat(xd, yd, idx=self.xidx[i])
+                mxd = l._marker_xdata[self.xidx[i]]
+                txt = ax._marker_yformat(xd, yd, mxd=mxd)
 
                 self.ytext[i].set_text(txt)
         
@@ -393,13 +406,13 @@ class Marker(object):
         xmax, xmin = -np.inf, np.inf
 
         if self.index_mode:
-            xlen = len(self.lines[0][1].get_xdata())
+            xlen = len(self.lines[0][1]._marker_xdata)
             nxidx = self.xidx[0] -1 if direction < 0 else self.xidx[0] +1
             if (nxidx >= xlen):
                 nxidx = 0 if self.wrap else xlen-1
             elif (nxidx <= 0):
                 nxidx = xlen-1 if self.wrap else 0
-            self.move_to_point(self.lines[0][1].get_xdata()[nxidx])
+            self.move_to_point(self.lines[0][1]._marker_xdata[nxidx])
             return
 
         line = None
@@ -410,7 +423,7 @@ class Marker(object):
             xloc = np.array([-np.inf]*len(self.lines))
 
         for i, (ax,l) in enumerate(self.lines):
-            xdata = l.get_xdata()
+            xdata = l._marker_xdata
 
             if direction > 0:
                 
@@ -427,12 +440,12 @@ class Marker(object):
         if direction > 0:
             l_idx = np.argmin(xloc)
             if np.min(xloc) < np.inf:
-                new_xpoint = self.lines[l_idx][1].get_xdata()[self.xidx[l_idx]] + step_size
+                new_xpoint = self.lines[l_idx][1]._marker_xdata[self.xidx[l_idx]] + step_size
                 self.move_to_point(new_xpoint)
         else:
             l_idx = np.argmax(xloc)
             if np.max(xloc) > -np.inf:
-                new_xpoint = self.lines[l_idx][1].get_xdata()[self.xidx[l_idx]] - step_size
+                new_xpoint = self.lines[l_idx][1]._marker_xdata[self.xidx[l_idx]] - step_size
                 self.move_to_point(new_xpoint)
 
     def remove(self):
@@ -516,24 +529,21 @@ class MarkerManager(object):
         
     def move_linked(self, axes, x, y):
         axes.marker_active.move_to_point(disp=(x,y))
-        idx = axes.marker_active.xidx[0] if axes.marker_params['force_index_mode'] else None
         for ax in axes.marker_linked_axes:
-            ax.marker_active.move_to_point(xd=axes.marker_active.xdpoint, idx=idx)
+            ax.marker_active.move_to_point(xd=axes.marker_active.xdpoint)
 
     def add_linked(self, axes, x, y):
         marker = axes.marker_add(disp=(x,y))  
-        idx = axes.marker_active.xidx[0] if axes.marker_params['force_index_mode'] else None
         for ax in axes.marker_linked_axes:
-            ax.marker_add(xd=axes.marker_active.xdpoint, idx=idx)
+            ax.marker_add(xd=axes.marker_active.xdpoint)
 
         self.make_linked_active(axes, marker)
         self.draw_all()
 
     def shift_linked(self, axes, direction):
         axes.marker_active.shift(direction)
-        idx = axes.marker_active.xidx[0] if axes.marker_params['force_index_mode'] else None
         for ax in axes.marker_linked_axes:
-            ax.marker_active.move_to_point(xd=axes.marker_active.xdpoint, idx=idx)
+            ax.marker_active.move_to_point(xd=axes.marker_active.xdpoint)
             #ax.marker_active.shift(direction)
         
     def delete_linked(self, axes):
