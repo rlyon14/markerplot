@@ -73,13 +73,13 @@ def marker_link(self, *axes, byindex=False):
         number of markers are not kept equal between linked axes.
     """
     axes = list(axes)
-    self._force_index_mode = byindex
+    self.marker_params['force_index_mode'] = byindex
     for ax in axes:
         if ax in self.marker_linked_axes or ax == self:
             continue
         self.marker_linked_axes.append(ax)
         ax.marker_linked_axes.append(self)
-        ax._force_index_mode = byindex
+        ax.marker_params['force_index_mode'] = byindex
 
 def _marker_yformat(self, xd, yd, idx=None):
     yformatter = self.yaxis.get_major_formatter()
@@ -153,7 +153,8 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
         xlabel_pad = 6,
         ylabel_xpad = 10,
         ylabel_ypad = 4,
-        inherit_ticker = True
+        inherit_ticker = True,
+        force_index_mode = False
     )
 
     default_params.update(dict(**marker_params))
@@ -165,7 +166,6 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
         ax.marker_active = None
         ax.marker_linked_axes = []
         ax._draw_background = None
-        ax._force_index_mode = False
         
         if not hasattr(ax.__class__, 'marker_add'):
             patch = gorilla.Patch(ax.__class__, 'marker_add', marker_add)

@@ -91,7 +91,10 @@ class Marker(object):
                     xdata = l.get_xdata()
                     xcheck = np.append(xcheck, [[xdata[0], xdata[-1], len(xdata)]], axis=0)
 
-        self.index_mode = np.all(xcheck == xcheck[0,:]) if not self.axes._force_index_mode else True
+        if self.axes.marker_params['force_index_mode']:
+            self.index_mode = np.all(xcheck[:, 2] == xcheck[0,2]) ## ensure all lengths are the same
+        else:
+            self.index_mode = np.all(xcheck == xcheck[0,:])
 
         self.create(xd, idx=idx, disp=disp)
 
@@ -513,13 +516,13 @@ class MarkerManager(object):
         
     def move_linked(self, axes, x, y):
         axes.marker_active.move_to_point(disp=(x,y))
-        idx = axes.marker_active.xidx[0] if axes._force_index_mode else None
+        idx = axes.marker_active.xidx[0] if axes.marker_params['force_index_mode'] else None
         for ax in axes.marker_linked_axes:
             ax.marker_active.move_to_point(xd=axes.marker_active.xdpoint, idx=idx)
 
     def add_linked(self, axes, x, y):
         marker = axes.marker_add(disp=(x,y))  
-        idx = axes.marker_active.xidx[0] if axes._force_index_mode else None
+        idx = axes.marker_active.xidx[0] if axes.marker_params['force_index_mode'] else None
         for ax in axes.marker_linked_axes:
             ax.marker_add(xd=axes.marker_active.xdpoint, idx=idx)
 
@@ -528,7 +531,7 @@ class MarkerManager(object):
 
     def shift_linked(self, axes, direction):
         axes.marker_active.shift(direction)
-        idx = axes.marker_active.xidx[0] if axes._force_index_mode else None
+        idx = axes.marker_active.xidx[0] if axes.marker_params['force_index_mode'] else None
         for ax in axes.marker_linked_axes:
             ax.marker_active.move_to_point(xd=axes.marker_active.xdpoint, idx=idx)
             #ax.marker_active.shift(direction)
