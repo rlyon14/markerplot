@@ -326,8 +326,25 @@ class Marker(object):
             xloc = dims[i].x0
             yloc = (loc_array[i, 1] + loc_array[i, 0])/2
             ytext.set_position((xloc, yloc))
-            if dims[i].x1 > xmax:
-                xloc -= (dims[i].x1 - dims[i].x0) + self.ylabel_xpad*2
+
+            ## flip label to left side of dot if out of bounds
+            # if dims[i].x1 > xmax:
+            #     xloc -= (dims[i].x1 - dims[i].x0) + self.ylabel_xpad*2
+
+            ## force inside axes bounds
+            ovl = dims[i].x1 - xmax
+            if ovl > 0:
+                shift = (dims[i].x1 - dims[i].x0) + self.ylabel_xpad*2
+                xloc -= shift
+                ovl = ovl - shift
+                if ovl > 0:
+                    xloc -= ovl
+
+            ovl = xmin - dims[i].x0
+            if ovl > 0:
+                xloc += ovl
+
+            ## set position
             ytext.set_position((xloc, yloc))
         
         if xlabel_dim.x0 < xmin:
@@ -784,9 +801,10 @@ class MarkerManager(object):
         ## draw until axes origin stops moving
         max_draw = 10
         identical = False
-        prev = False
+        prev = True
         draw = 0
         while not identical:
+            #print(draw)
             origins = self.update_all()
             identical = origins and prev
             prev = origins
