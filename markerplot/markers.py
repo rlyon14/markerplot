@@ -129,6 +129,17 @@ class Marker(object):
         self.display2data = self.axes.transData.inverted().transform
 
         for i, (ax,l) in enumerate(self.lines):
+            vis = l.get_visible()
+            self.ytext[i].set_visible(vis)
+            if ax.marker_params['show_dot']:
+                self.ydot[i].set_visible(vis)
+                #self.ydot[i].set_visible(False)
+            # color = l.get_color()
+            # color = matplotlib.colors.to_hex(color, keep_alpha=True)
+            # boxparams = dict(facecolor='black', edgecolor=color, linewidth=1.6, boxstyle='round', alpha=ax.marker_params['alpha'])
+            # #print('color', color, color.__class__)
+            # self.ydot[i].set_color(color)
+
             l.xy = self.data2display(ax, l.get_xydata())
 
         self.base_origin = list(self.display2data((0,0)))
@@ -372,8 +383,8 @@ class Marker(object):
         xloc = []
         yloc = []
         for i, (ax,l) in enumerate(self.lines):
-            self.ytext[i].set_visible(True)
-            self.ydot[i].set_visible(True)
+            self.ytext[i].set_visible(l.get_visible())
+            self.ydot[i].set_visible(l.get_visible())
 
             if not self.index_mode:
                 ## turn off ylabel and dot if ypoint is out of bounds
@@ -496,6 +507,7 @@ class Marker(object):
 class MarkerManager(object):
     def __init__(self, fig, top_axes=None):
         self.fig = fig
+        self.toolbar = self.fig.canvas.toolbar
 
         if top_axes == None:
             self.top_axes = []
@@ -605,13 +617,8 @@ class MarkerManager(object):
         return None
 
     def get_event_axes(self, event):
-        plt.figure(self.fig.number)
-        if plt.get_current_fig_manager().toolbar.mode != '':
-            self.zoom = True
-        else:
-            self.zoom = False
-
-        if self.zoom:
+        tmode = self.toolbar.mode
+        if tmode != '':
             return None
 
         axes = event.inaxes
@@ -631,6 +638,12 @@ class MarkerManager(object):
 
     def onkey_press(self, event):
         axes = self.get_event_axes(event)
+        if(event.key == 'escape'):
+            if self.toolbar.mode == 'pan/zoom':
+                self.toolbar.pan()
+            elif self.toolbar.mode == 'zoom rect':
+                self.toolbar.zoom()
+
         if axes == None:
             return
         if axes.marker_active == None:
