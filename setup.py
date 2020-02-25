@@ -11,6 +11,7 @@ setup(
 		'matplotlib>=3.1.0',
         'numpy',
         'gorilla',
-        'pyqt5'
+        'pyqt5',
+        'Pillow'
     ),
 )

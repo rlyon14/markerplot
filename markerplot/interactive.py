@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QGridLayout, QLabel,
                              QVBoxLayout, QWidget, QStyleFactory, QGroupBox, QCheckBox)
 
 from PyQt5 import QtWidgets, QtCore, QtGui
+#from PyQt5.Qtgui import QImage
 import numpy as np
 
 from pathlib import Path
@@ -13,10 +14,13 @@ from time import time
 import matplotlib.pyplot as plt
 import markerplot
 import matplotlib
+import io
 
 import sys
 import time
 from pathlib import Path
+import win32clipboard
+from PIL import Image
 
 import numpy as np
 # from fbs_runtime.application_context.PyQt5 import ApplicationContext
@@ -31,14 +35,14 @@ import matplotlib.pyplot as plt
 dir_ = Path(__file__).parent
 
 class PlotWindow(QtWidgets.QMainWindow):
-    def __init__(self, nrows=1, ncols=1, figsize=(5,3), constrained_layout=False, **kwargs):
+    def __init__(self, nrows=1, ncols=1, figsize=(5,3), constrained_layout=False, title=None, **kwargs):
         self.qapp = QtWidgets.QApplication(sys.argv)
         
         super().__init__()
         #self.setAutoFillBackground(True)
-        
+        title = 'Figure' if title == None else title
         self._main = QtWidgets.QWidget()
-        self.setWindowTitle('title')
+        self.setWindowTitle(title)
         self.setStyle(QStyleFactory.create('Fusion'))
 
         self.setCentralWidget(self._main)
@@ -63,8 +67,12 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.canvas.setFocusPolicy( QtCore.Qt.ClickFocus )
         self.canvas.setFocus()
 
+        p = self.palette()
+        p.setColor(self.backgroundRole(), Qt.white)
+        self.setPalette(p)
+
     def build_toolbar(self):
-        toolbar = NavigationToolbar(self.canvas, self)
+        toolbar = NavigationToolbar(self.canvas, self, coordinates=False)
         #toolbar.removeAction(toolbar._actions['forward'])
         #toolbar.removeAction(toolbar._actions['back'])
         toolbar.removeAction(toolbar._actions['configure_subplots'])
@@ -77,20 +85,55 @@ class PlotWindow(QtWidgets.QMainWindow):
                     'Customize', self.set_tight_layout)
         a.setToolTip('Apply Tight Layout')
 
+        ## Copy
+        icon = QtGui.QPixmap(str(dir_  / 'icons/copy_large.png'))
+
+        icon.setDevicePixelRatio(self.canvas._dpi_ratio)
+
+        # print(matplotlib.rcParams['datapath'])
+        a = toolbar.addAction(QtGui.QIcon(icon),
+                    'Customize', self.copy_figure)
+        a.setToolTip('Copy To Clipboard')
+
+
         toolbar.coordinates = False
-        return toolbar
+        
         #layout.addWidget(toolbar)
 
-        # self.locLabel = QLabel("", toolbar)
-        # self.locLabel.setAlignment(
-        #         QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
-        # self.locLabel.setSizePolicy(
-        #     QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding,
-        #                             QtWidgets.QSizePolicy.Ignored))
-        # toolbar.addWidget(self.locLabel)
+        locLabel = QLabel("", toolbar)
+        locLabel.setAlignment(
+                QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
+        locLabel.setSizePolicy(
+            QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                                    QtWidgets.QSizePolicy.Ignored))
+        toolbar.addWidget(locLabel)
+        return toolbar
             
-    def createCheckBox(self, label):
+    def createCheckBoxLabel(self, label, size=14):
+        r,g,b,a=self.palette().base().color().getRgbF()
+
+        _figure=Figure(edgecolor=(r,g,b), facecolor=(r,g,b), dpi=100)
+        _canvas=FigureCanvas(_figure)
+        #l.addWidget(self._canvas)
+        _figure.clear()
+        text=_figure.suptitle(
+            label,
+            x=0.0,
+            y=1.0,
+            horizontalalignment='left',
+            verticalalignment='top',
+            size='small'
+        )
+        _canvas.draw()
+
+        (x0,y0),(x1,y1)=text.get_window_extent().get_points()
+        w=x1-x0; h=y1-y0
         
+
+       # _figure.set_size_inches(w, h)
+        _canvas.setFixedSize(w,h)
+        #self.setFixedSize(w,h)
+        return _canvas
 
     def createTracesGroup(self):
         self.traces = [QGroupBox("Traces{}".format(i)) for i in range(self.nrows * self.ncols)]
@@ -101,7 +144,8 @@ class PlotWindow(QtWidgets.QMainWindow):
         
         for i, ax in enumerate(self.ax.flatten()):
             print(ax, i)
-            layout = QVBoxLayout()
+            row = 0
+            layout = QGridLayout()
             for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
                 # if ax_shared == ax:
                 #     continue
@@ -113,13 +157,18 @@ class PlotWindow(QtWidgets.QMainWindow):
                         continue
 
                     #label = plt.text(0.4,0.4,'$%s$' %label,size=50)
-                    cb = QCheckBox(label)
+                    cb = QCheckBox('')
                     self.traces_cb[i].append((cb, l, label))
                     cb.stateChanged.connect(self.state_changed)
                     cb.setChecked(True)
+                    qlabel = self.createCheckBoxLabel(label, size=14)
+                    
+                    layout.addWidget(cb, row, 0)
+                    layout.addWidget(qlabel, row, 1, alignment=Qt.AlignLeft)
+                    
+                    row += 1
 
-                    layout.addWidget(cb)
-
+            layout.setAlignment(Qt.AlignLeft)
             self.traces[i].setLayout(layout)  
         # self.menu_scroll = QScrollArea(widgetResizable=False)
         # self.menu_scroll.setWidget(self.traces)
@@ -140,6 +189,35 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.fig.tight_layout()
         self.canvas.draw()
 
+    def copy_figure(self):
+
+        buf = io.BytesIO()
+        self.fig.savefig(buf)
+        data = buf.getvalue()[14:]
+
+        image = Image.open(buf)
+        print(image)
+        output = io.BytesIO()
+        image.convert("RGB").save(output, "BMP")
+        data = output.getvalue()[14:]
+        output.close()
+
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+        win32clipboard.CloseClipboard()
+        buf.close()
+
+
+
+        # #clipboard = win32clipboard
+        # #clipboard = QApplication.clipboard()
+        # #clipboard.setImage(QtGui.QImage.fromData(buf.getvalue()),  mode=clipboard.Clipboard)
+        # win32clipboard.OpenClipboard()
+        # win32clipboard.SetClipboardData(0, bytes(buf))
+        # buf.close()
+        
+
     def show(self):
         self.createTracesGroup()
         added_traces = False
@@ -156,8 +234,9 @@ class PlotWindow(QtWidgets.QMainWindow):
         super().show()
         self.qapp.exec_()
 
-def interactive_subplots(nrows=1, ncols=1, figsize=(5,3), constrained_layout=True, **kwargs):
-    app = PlotWindow(nrows, ncols, figsize=figsize, constrained_layout=True, **kwargs)
+
+def interactive_subplots(nrows=1, ncols=1, figsize=(5,3), constrained_layout=True, title=None, **kwargs):
+    app = PlotWindow(nrows, ncols, figsize=figsize, constrained_layout=True, title=title, **kwargs)
     fig, ax = app.fig, app.ax
     return app, fig, ax
 

@@ -33,7 +33,7 @@ class MathTextLabel(QtWidgets.QWidget):
         w=x1-x0; h=y1-y0
 
         #self._figure.set_size_inches(w/300, h/300)
-        self.setFixedSize(w,h)
+        self._canvas.setFixedSize(w,h)
 
 if __name__=='__main__':
     from sys import argv, exit
