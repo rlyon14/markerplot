@@ -26,13 +26,16 @@ from matplotlib.backends.backend_qt5agg import (
     FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 
 from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
 
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, figsize=(5,3), constrained_layout=False, **kwargs):
         self.qapp = QtWidgets.QApplication(sys.argv)
+        
         super().__init__()
+        #self.setAutoFillBackground(True)
         
         self._main = QtWidgets.QWidget()
         self.setWindowTitle('title')
@@ -86,6 +89,8 @@ class PlotWindow(QtWidgets.QMainWindow):
         #                             QtWidgets.QSizePolicy.Ignored))
         # toolbar.addWidget(self.locLabel)
             
+    def createCheckBox(self, label):
+        
 
     def createTracesGroup(self):
         self.traces = [QGroupBox("Traces{}".format(i)) for i in range(self.nrows * self.ncols)]
@@ -106,8 +111,10 @@ class PlotWindow(QtWidgets.QMainWindow):
                     label = l.get_label()
                     if label == '' or label[0] == '_':
                         continue
+
+                    #label = plt.text(0.4,0.4,'$%s$' %label,size=50)
                     cb = QCheckBox(label)
-                    self.traces_cb[i].append((cb, l, l.get_label()))
+                    self.traces_cb[i].append((cb, l, label))
                     cb.stateChanged.connect(self.state_changed)
                     cb.setChecked(True)
 

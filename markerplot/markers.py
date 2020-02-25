@@ -696,6 +696,7 @@ class MarkerManager(object):
 
     def onclick(self, event):
         axes = self.get_event_axes(event)
+        print(event)
         self.move = axes
         if self.move == None:
             return
