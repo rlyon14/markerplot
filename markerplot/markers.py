@@ -311,6 +311,11 @@ class Marker(object):
             ylocs.append((dim.y1 + dim.y0)/2)
 
         ## sort ylabels by their positions on the axes
+        ylabels = []
+        for yl in self.ytext:
+            if yl.get_visible():
+                ylabels.append(yl)
+                
         ylabels = list(self.ytext)
         zipped = zip(ylocs, ylabels, dims)
         zipped_sorted  = sorted(zipped, key=lambda x: x[0])

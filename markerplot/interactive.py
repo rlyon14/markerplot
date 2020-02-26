@@ -39,6 +39,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.qapp = QtWidgets.QApplication(sys.argv)
         
         super().__init__()
+        
         #self.setAutoFillBackground(True)
         title = 'Figure' if title == None else title
         self._main = QtWidgets.QWidget()
@@ -48,8 +49,13 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self._main)
         self.layout = QGridLayout(self._main)
 
-        self.fig = Figure(figsize=figsize, constrained_layout=constrained_layout)
+        #self.fig = Figure(figsize=figsize, constrained_layout=constrained_layout)
+        self.fig = plt.figure(figsize=figsize, constrained_layout=constrained_layout)
+        
         self.ax = self.fig.subplots(nrows, ncols, **kwargs)
+        
+        #plt.close(self.fig)
+        
         self.nrows = nrows
         self.ncols = ncols
 
@@ -60,7 +66,12 @@ class PlotWindow(QtWidgets.QMainWindow):
             ax.grid()
 
         self.canvas = FigureCanvas(self.fig)
+        #self.canvas = self.fig.canvas
+
+        #plt.show()
+        self.canvas.manager = CanvasManager(self.show)
         self.layout.addWidget(self.canvas, 0,0, (self.nrows*self.ncols)+1, 1)
+        
 
         toolbar = self.build_toolbar()
         self.addToolBar(toolbar)
@@ -70,13 +81,14 @@ class PlotWindow(QtWidgets.QMainWindow):
         p = self.palette()
         p.setColor(self.backgroundRole(), Qt.white)
         self.setPalette(p)
+        
 
     def build_toolbar(self):
         toolbar = NavigationToolbar(self.canvas, self, coordinates=False)
         #toolbar.removeAction(toolbar._actions['forward'])
         #toolbar.removeAction(toolbar._actions['back'])
         toolbar.removeAction(toolbar._actions['configure_subplots'])
-        icon = QtGui.QPixmap(str(dir_  / 'icons/subplots_large.png'))
+        icon = QtGui.QPixmap(str(dir_  / 'icons/layout_large.png'))
 
         icon.setDevicePixelRatio(self.canvas._dpi_ratio)
 
@@ -113,6 +125,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         r,g,b,a=self.palette().base().color().getRgbF()
 
         _figure=Figure(edgecolor=(r,g,b), facecolor=(r,g,b), dpi=100)
+
         _canvas=FigureCanvas(_figure)
         #l.addWidget(self._canvas)
         _figure.clear()
@@ -143,7 +156,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.traces_cb = [[]]*(self.nrows * self.ncols)
         
         for i, ax in enumerate(self.ax.flatten()):
-            print(ax, i)
+            #print(ax, i)
             row = 0
             layout = QGridLayout()
             for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
@@ -196,7 +209,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         data = buf.getvalue()[14:]
 
         image = Image.open(buf)
-        print(image)
+        #print(image)
         output = io.BytesIO()
         image.convert("RGB").save(output, "BMP")
         data = output.getvalue()[14:]
@@ -219,7 +232,9 @@ class PlotWindow(QtWidgets.QMainWindow):
         
 
     def show(self):
+        
         self.createTracesGroup()
+        
         added_traces = False
         for i, tr in enumerate(self.traces):
             if len(self.traces_cb[i]) > 1:
@@ -231,8 +246,25 @@ class PlotWindow(QtWidgets.QMainWindow):
             self.layout.setColumnStretch(0, 1)
             self.layout.setRowStretch(i+1, 1)
 
+        print('t')
+        plt.close(self.fig)
+        self.canvas.destroy()
         super().show()
+        
         self.qapp.exec_()
+        self.qapp.quit()
+        print(id(plt.gcf()), id(self.fig))
+        #plt.close('all')
+        print(id(plt.gcf()), id(self.fig))
+        print(id(plt.gcf()), id(self.fig))
+        
+        print('close')
+
+class CanvasManager(object):
+    def __init__(self, show_func):
+        self._show = show_func
+    def show(self):
+        return self._show()
 
 
 def interactive_subplots(nrows=1, ncols=1, figsize=(5,3), constrained_layout=True, title=None, **kwargs):
@@ -241,11 +273,13 @@ def interactive_subplots(nrows=1, ncols=1, figsize=(5,3), constrained_layout=Tru
     return app, fig, ax
 
 if __name__ == "__main__":
-
+    matplotlib.use('Qt5Agg')
+    #print(id(plt.gcf()))
     app, fig, ax = interactive_subplots(1,2)
+    #fig, ax = plt.subplots(1,2)
     t = np.linspace(0, 10, 101)
-    ax[0].plot(t, np.sin(t), label='sin')
-    ax[1].plot(t, np.cos(t), label='cos')
+    ax[0].plot(t, np.sin(t))#, label='sin')
+    ax[1].plot(t, np.cos(t))#, label='cos')
     
     fig.marker_enable(link_all=True, show_xlabel=True)
-    app.show()
+    plt.show()
