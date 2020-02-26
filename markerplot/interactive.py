@@ -65,11 +65,18 @@ class PlotWindow(QtWidgets.QMainWindow):
         for ax in self.ax.flatten():
             ax.grid()
 
-        self.canvas = FigureCanvas(self.fig)
-        #self.canvas = self.fig.canvas
+        print('c', id(self.fig.canvas))
+        self._old_canvas = self.fig.canvas
+        #self.canvas = FigureCanvas(self.fig)
+        self.canvas = self.fig.canvas
+        print('c', id(self.fig.canvas), id(self.canvas))
 
-        #plt.show()
-        self.canvas.manager = CanvasManager(self.show)
+        
+        print('t')
+        self._old_canvas_mn_show = self.canvas.manager.show
+        print('p', id(self._old_canvas_mn_show))
+        self.canvas.manager.show = self.show
+        print('p', id(self._old_canvas_mn_show))
         self.layout.addWidget(self.canvas, 0,0, (self.nrows*self.ncols)+1, 1)
         
 
@@ -246,13 +253,17 @@ class PlotWindow(QtWidgets.QMainWindow):
             self.layout.setColumnStretch(0, 1)
             self.layout.setRowStretch(i+1, 1)
 
-        print('t')
-        plt.close(self.fig)
-        self.canvas.destroy()
+        #self.fig.canvas = self._old_canvas
+        
+        #self.canvas.destroy()
         super().show()
         
         self.qapp.exec_()
-        self.qapp.quit()
+        #self.canvas.manager.show = self._old_canvas_mn_show
+        plt.close(self.fig)
+        self._old_canvas_mn_show()
+        #plt.close(self.fig)
+        #self.qapp.quit()
         print(id(plt.gcf()), id(self.fig))
         #plt.close('all')
         print(id(plt.gcf()), id(self.fig))
@@ -276,10 +287,11 @@ if __name__ == "__main__":
     matplotlib.use('Qt5Agg')
     #print(id(plt.gcf()))
     app, fig, ax = interactive_subplots(1,2)
+    print('hello')
     #fig, ax = plt.subplots(1,2)
     t = np.linspace(0, 10, 101)
-    ax[0].plot(t, np.sin(t))#, label='sin')
-    ax[1].plot(t, np.cos(t))#, label='cos')
+    ax[0].plot(t, np.sin(t), label='sin')
+    ax[1].plot(t, np.cos(t), label='cos')
     
     fig.marker_enable(link_all=True, show_xlabel=True)
-    plt.show()
+    plt.show(block=True)
