@@ -99,9 +99,8 @@ def _marker_xformat(self, xd):
         return '{:.3f}'.format(xd)
 
 def plot(self, *args, **kwargs):
-    mxd = None
+    mxd = kwargs.get('marker_xd', None)
     if 'marker_xd' in kwargs.keys():
-        mxd = kwargs['marker_xd']
         kwargs.pop('marker_xd')
 
     original = gorilla.get_original_attribute(self, 'plot')
@@ -116,6 +115,19 @@ def plot(self, *args, **kwargs):
 ##############
 ############## 
 
+marker_default_params = dict(
+        show_xline=True,
+        yformat= None,
+        xformat= None,
+        show_xlabel=False,
+        xreversed=False, 
+        alpha=0.7,
+        wrap = False,
+        xlabel_pad = 6,
+        ylabel_xpad = 10,
+        ylabel_ypad = 4,
+        inherit_ticker = True,
+    )
 
 ####################
 ## Figure Patches ##
@@ -152,28 +164,15 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
                     wrap: (bool) allow markers to wrap to other side of data array when using arrow keys
     """
     if interactive:
+        #if not hasattr(self, '_eventmanager'):
         self._eventmanager = MarkerManager(self, top_axes=top_axes)
 
-    default_params = dict(
-        show_xline=True,
-        show_dot=True,
-        yformat= None,
-        xformat= None,
-        show_xlabel=False,
-        xreversed=False, 
-        alpha=0.7,
-        wrap = False,
-        xlabel_pad = 6,
-        ylabel_xpad = 10,
-        ylabel_ypad = 4,
-        inherit_ticker = True,
-    )
-
-    default_params.update(dict(**marker_params))
+    default_inst = dict(**marker_default_params)
+    default_inst.update(dict(**marker_params))
 
     for ax in self.axes:
         ax.markers = []
-        ax.marker_params = dict(**default_params)
+        ax.marker_params = dict(**default_inst)
         ax.marker_ignorelines = []
         ax.marker_active = None
         ax.marker_linked_axes = []

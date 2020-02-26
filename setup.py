@@ -12,6 +12,7 @@ setup(
         'numpy',
         'gorilla',
         'pyqt5',
-        'Pillow'
+        'Pillow',
+        'pywin32'
     ),
 )

@@ -131,8 +131,7 @@ class Marker(object):
         for i, (ax,l) in enumerate(self.lines):
             vis = l.get_visible()
             self.ytext[i].set_visible(vis)
-            if ax.marker_params['show_dot']:
-                self.ydot[i].set_visible(vis)
+            self.ydot[i].set_visible(vis)
                 #self.ydot[i].set_visible(False)
             # color = l.get_color()
             # color = matplotlib.colors.to_hex(color, keep_alpha=True)
@@ -227,9 +226,9 @@ class Marker(object):
             self.axes.marker_ignorelines.append(self.ydot[i])
             ax.marker_ignorelines.append(self.ydot[i])
             
-            if not ax.marker_params['show_dot']:
-                self.ydot[i].set_visible(False)
-                self.ydot[i].set_zorder(0)
+            # if not ax.marker_params['show_dot']:
+            #     self.ydot[i].set_visible(False)
+            #     self.ydot[i].set_zorder(0)
             self.line_xbounds[i] = np.min(l._marker_xdata), np.max(l._marker_xdata)
 
         ## move objects to current point
@@ -305,18 +304,24 @@ class Marker(object):
         ## generate list of ylabel locations
         dims = []
         ylocs = []
+        ylabels = []
         for i, ytext in enumerate(self.ytext):
-            dim = ytext.get_window_extent(self.renderer)
-            dims.append(dim)
-            ylocs.append((dim.y1 + dim.y0)/2)
+            if ytext.get_visible():
+                dim = ytext.get_window_extent(self.renderer)
+                dims.append(dim)
+                ylocs.append((dim.y1 + dim.y0)/2)
+                ylabels.append(ytext)
+
+        if len(ylabels) < 1:
+            return
 
         ## sort ylabels by their positions on the axes
-        ylabels = []
-        for yl in self.ytext:
-            if yl.get_visible():
-                ylabels.append(yl)
+        # ylabels = []
+        # for yl in self.ytext:
+        #     if yl.get_visible():
+        #         ylabels.append(yl)
                 
-        ylabels = list(self.ytext)
+        #ylabels = list(self.ytext)
         zipped = zip(ylocs, ylabels, dims)
         zipped_sorted  = sorted(zipped, key=lambda x: x[0])
         ylocs, ylabels, dims = zip(*zipped_sorted)
@@ -328,6 +333,7 @@ class Marker(object):
         self._compute_ylabel_loc(loc_array, ymin, ymax)
 
         for i, ytext in enumerate(ylabels):
+
             xloc = dims[i].x0
             yloc = (loc_array[i, 1] + loc_array[i, 0])/2
             ytext.set_position((xloc, yloc))
@@ -519,17 +525,18 @@ class Marker(object):
             self.ytext[i].axes.draw_artist(self.ytext[i])
         self.axes.draw_artist(self.xtext)
 
-        blit_axes = []
-        for i, (ax,l) in enumerate(self.lines):
-            if ax in blit_axes: continue
-            ax.figure.canvas.blit(ax.bbox)
-            blit_axes.append(ax)
-
+    
+        # blit_axes = []
+        # for i, (ax,l) in enumerate(self.lines):
+        #     if ax in blit_axes: continue
+        #     ax.figure.canvas.blit(ax.bbox)
+        #     blit_axes.append(ax)
 
 class MarkerManager(object):
     def __init__(self, fig, top_axes=None):
         self.fig = fig
         self.toolbar = self.fig.canvas.toolbar
+        print('init', self.toolbar, id(self.toolbar))
 
         if top_axes == None:
             self.top_axes = []
@@ -620,17 +627,52 @@ class MarkerManager(object):
                 l_ax._draw_background = None
 
     def draw_active_marker(self, axes):
-        if axes._draw_background == None:
-            self.draw_all(animated=True)
+        draw_background_none = False
 
-        ## set active marker on each axes to animated
+        if axes._draw_background == None:
+            draw_background_none = True
+        
+        else:
+            #print('test')
+            for ax in axes.marker_linked_axes:
+                #print('test', id(ax), ax._draw_background == None)
+                if ax._draw_background == None:
+                    draw_background_none = True
+                    break
+
+        if draw_background_none:
+            print('TRUE')
+            #print()
+            self.draw_all(animated=True)
+            return
+
         axes.figure.canvas.restore_region(axes._draw_background)
         if axes.marker_active != None:
+            #print('main', id(axes))
             axes.marker_active.draw()
+
+        #for ax in axes.marker_linked_axes:
+            #print('ttst2', id(ax), ax._draw_background==None)
+
+        ## set active marker on each axes to animated
+        
+
         for ax in axes.marker_linked_axes:
             ax.figure.canvas.restore_region(ax._draw_background)
             if ax.marker_active != None:
                 ax.marker_active.draw()
+
+        axes.figure.canvas.blit(axes.bbox)
+        # for ax_shared in axes.get_shared_x_axes().get_siblings(axes):
+        #     ax_shared.figure.canvas.blit(ax_shared.bbox)
+
+        for ax in axes.marker_linked_axes:
+            # for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
+            #     ax_shared.figure.canvas.blit(ax_shared.bbox)
+            #if ax in blit_axes: continue
+            ax.figure.canvas.blit(ax.bbox)
+            #blit_axes.append(ax)
+
 
     def get_event_marker(self, axes, event):
         for m in axes.markers:
@@ -661,6 +703,8 @@ class MarkerManager(object):
     def onkey_press(self, event):
         axes = self.get_event_axes(event)
         if(event.key == 'escape'):
+            print('escape')
+            print(self.toolbar, id(self.toolbar))
             if self.toolbar.mode == 'pan/zoom':
                 self.toolbar.pan()
             elif self.toolbar.mode == 'zoom rect':
@@ -701,7 +745,6 @@ class MarkerManager(object):
 
     def onclick(self, event):
         axes = self.get_event_axes(event)
-        print(event)
         self.move = axes
         if self.move == None:
             return
@@ -759,6 +802,7 @@ class MarkerManager(object):
             for ax in self.fig.axes:
                 self.draw_active_marker(ax)
         else:
+            print('clear')
             self.clear_saved_background()
 
         for fig in drawn:
@@ -767,12 +811,15 @@ class MarkerManager(object):
         self.set_active_animated()
 
     def update_canvas(self):
+        print('begin update')
         ##TODO: update display for twinx axes
         for ax in self.fig.axes:
             ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
+            #print('update axes1', id(ax), ax._draw_background)
             for l_ax in ax.marker_linked_axes:
                 fig = l_ax.figure
                 l_ax._draw_background = fig.canvas.copy_from_bbox(l_ax.bbox)
+                #print('update axes', id(l_ax), l_ax._draw_background)
 
     def canvas_draw_disconnect(self):
         self.fig.canvas.mpl_disconnect(self.ciddraw)
@@ -810,7 +857,7 @@ class MarkerManager(object):
         prev = True
         draw = 0
         while not identical:
-            #print(draw)
+            print('event', draw)
             origins = self.update_all()
             identical = origins and prev
             prev = origins

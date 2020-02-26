@@ -13,6 +13,7 @@ import sys
 from time import time
 import matplotlib.pyplot as plt
 import markerplot
+from markerplot import marker_default_params
 import matplotlib
 import io
 
@@ -34,72 +35,96 @@ import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
 
+
+
 class PlotWindow(QtWidgets.QMainWindow):
-    def __init__(self, nrows=1, ncols=1, figsize=(5,3), constrained_layout=False, title=None, **kwargs):
+    def __init__(self, nrows=1, ncols=1, **kwargs):
+        matplotlib.use('Qt5Agg')
         self.qapp = QtWidgets.QApplication(sys.argv)
         
         super().__init__()
-        
-        #self.setAutoFillBackground(True)
-        title = 'Figure' if title == None else title
+
         self._main = QtWidgets.QWidget()
-        self.setWindowTitle(title)
+        
         self.setStyle(QStyleFactory.create('Fusion'))
 
         self.setCentralWidget(self._main)
         self.layout = QGridLayout(self._main)
 
+        marker_kw = {}
+
+        for k in marker_default_params.keys():
+            if k in kwargs.keys():
+                v = kwargs.pop(k)
+                marker_kw[k] = v
+
+        for k in ['interactive', 'top_axes', 'link_all']:
+            if k in kwargs.keys():
+                v = kwargs.pop(k)
+                marker_kw[k] = v
+
+
         #self.fig = Figure(figsize=figsize, constrained_layout=constrained_layout)
-        self.fig = plt.figure(figsize=figsize, constrained_layout=constrained_layout)
+        print(kwargs)
+        self.fig = plt.figure(**kwargs)
         
-        self.ax = self.fig.subplots(nrows, ncols, **kwargs)
+        self.ax = self.fig.subplots(nrows, ncols, squeeze=False, 
+            sharex=kwargs.get('sharex', False), 
+            sharey=kwargs.get('sharey', False), 
+            subplot_kw =kwargs.get('subplot_kw', None), 
+            gridspec_kw=kwargs.get('gridspec_kw', None))
+
+        marker_kw = {} if marker_kw == None else marker_kw
         
-        #plt.close(self.fig)
         
         self.nrows = nrows
         self.ncols = ncols
 
-        if not isinstance(self.ax, np.ndarray):
-            self.ax = np.array([self.ax])
-
         for ax in self.ax.flatten():
+            print('INIT')
             ax.grid()
-
-        print('c', id(self.fig.canvas))
-        self._old_canvas = self.fig.canvas
-        #self.canvas = FigureCanvas(self.fig)
-        self.canvas = self.fig.canvas
-        print('c', id(self.fig.canvas), id(self.canvas))
-
+            print(id(ax))
+            print('  ')
         
-        print('t')
-        self._old_canvas_mn_show = self.canvas.manager.show
-        print('p', id(self._old_canvas_mn_show))
-        self.canvas.manager.show = self.show
-        print('p', id(self._old_canvas_mn_show))
+        self.canvas = self.fig.canvas
+        self.canvas.mpl_disconnect(self.canvas.manager.key_press_handler_id)
+        #FigureCanvas(self.fig)
+        
+        self.canvas.manager.show = self._show
         self.layout.addWidget(self.canvas, 0,0, (self.nrows*self.ncols)+1, 1)
         
-
         toolbar = self.build_toolbar()
+        print(toolbar, id(toolbar))
         self.addToolBar(toolbar)
+        self.fig.canvas.toolbar = toolbar
         self.canvas.setFocusPolicy( QtCore.Qt.ClickFocus )
         self.canvas.setFocus()
 
         p = self.palette()
         p.setColor(self.backgroundRole(), Qt.white)
         self.setPalette(p)
+
+        title = kwargs.get('title', None)
+        title = 'Figure {}'.format(self.fig.canvas.manager.num) if title == None else title
+        self.setWindowTitle(title)
+        self.auto_layout = kwargs.get('constrained_layout', False) or kwargs.get('tight_layout', False)
+
         
+        self.fig.marker_enable(**marker_kw)
+
 
     def build_toolbar(self):
         toolbar = NavigationToolbar(self.canvas, self, coordinates=False)
-        #toolbar.removeAction(toolbar._actions['forward'])
-        #toolbar.removeAction(toolbar._actions['back'])
         toolbar.removeAction(toolbar._actions['configure_subplots'])
+        # toolbar.removeAction(toolbar._actions['forward'])
+        # toolbar.removeAction(toolbar._actions['back'])
+
         icon = QtGui.QPixmap(str(dir_  / 'icons/layout_large.png'))
 
         icon.setDevicePixelRatio(self.canvas._dpi_ratio)
 
-        # print(matplotlib.rcParams['datapath'])
+
+
         a = toolbar.addAction(QtGui.QIcon(icon),
                     'Customize', self.set_tight_layout)
         a.setToolTip('Apply Tight Layout')
@@ -109,7 +134,6 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         icon.setDevicePixelRatio(self.canvas._dpi_ratio)
 
-        # print(matplotlib.rcParams['datapath'])
         a = toolbar.addAction(QtGui.QIcon(icon),
                     'Customize', self.copy_figure)
         a.setToolTip('Copy To Clipboard')
@@ -117,8 +141,6 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         toolbar.coordinates = False
         
-        #layout.addWidget(toolbar)
-
         locLabel = QLabel("", toolbar)
         locLabel.setAlignment(
                 QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
@@ -134,7 +156,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         _figure=Figure(edgecolor=(r,g,b), facecolor=(r,g,b), dpi=100)
 
         _canvas=FigureCanvas(_figure)
-        #l.addWidget(self._canvas)
+
         _figure.clear()
         text=_figure.suptitle(
             label,
@@ -149,35 +171,29 @@ class PlotWindow(QtWidgets.QMainWindow):
         (x0,y0),(x1,y1)=text.get_window_extent().get_points()
         w=x1-x0; h=y1-y0
         
-
-       # _figure.set_size_inches(w, h)
         _canvas.setFixedSize(w,h)
-        #self.setFixedSize(w,h)
         return _canvas
 
     def createTracesGroup(self):
-        self.traces = [QGroupBox("Traces{}".format(i)) for i in range(self.nrows * self.ncols)]
-        #self.traces = np.array(self.traces).reshape(self.ax.shape)
-        #self.traces_flat = self.traces.flatten()
+        self.traces = [None]*(self.nrows * self.ncols)
+        for i in range(self.nrows):
+            for j in range(self.ncols):
+                self.traces[i*self.ncols + j] = QGroupBox("Axes {},{}".format(i,j))
+
 
         self.traces_cb = [[]]*(self.nrows * self.ncols)
         
         for i, ax in enumerate(self.ax.flatten()):
-            #print(ax, i)
             row = 0
             layout = QGridLayout()
             for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
-                # if ax_shared == ax:
-                #     continue
                 for l in ax_shared.lines:
 
-            #for ii, l in enumerate(ax.lines):
                     label = l.get_label()
                     if label == '' or label[0] == '_':
                         continue
 
-                    #label = plt.text(0.4,0.4,'$%s$' %label,size=50)
-                    cb = QCheckBox('')
+                    cb = CheckBox('')#QCheckBox('')
                     self.traces_cb[i].append((cb, l, label))
                     cb.stateChanged.connect(self.state_changed)
                     cb.setChecked(True)
@@ -202,7 +218,7 @@ class PlotWindow(QtWidgets.QMainWindow):
                     l.set_label(label)
                 else:
                     l.set_label('')
-            ax.legend(fontsize='small')
+            ax.legend(fontsize='small', loc='best')
         self.canvas.draw()
     
     def set_tight_layout(self):
@@ -213,10 +229,8 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         buf = io.BytesIO()
         self.fig.savefig(buf)
-        data = buf.getvalue()[14:]
 
         image = Image.open(buf)
-        #print(image)
         output = io.BytesIO()
         image.convert("RGB").save(output, "BMP")
         data = output.getvalue()[14:]
@@ -227,18 +241,9 @@ class PlotWindow(QtWidgets.QMainWindow):
         win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
         win32clipboard.CloseClipboard()
         buf.close()
-
-
-
-        # #clipboard = win32clipboard
-        # #clipboard = QApplication.clipboard()
-        # #clipboard.setImage(QtGui.QImage.fromData(buf.getvalue()),  mode=clipboard.Clipboard)
-        # win32clipboard.OpenClipboard()
-        # win32clipboard.SetClipboardData(0, bytes(buf))
-        # buf.close()
         
 
-    def show(self):
+    def _show(self):
         
         self.createTracesGroup()
         
@@ -252,24 +257,20 @@ class PlotWindow(QtWidgets.QMainWindow):
             self.layout.addWidget(QGroupBox(), i+1,1)
             self.layout.setColumnStretch(0, 1)
             self.layout.setRowStretch(i+1, 1)
+        
+        if not self.auto_layout:
+            plt.tight_layout()
 
-        #self.fig.canvas = self._old_canvas
+        self.show()
         
-        #self.canvas.destroy()
-        super().show()
+        #self.qapp.exec_()
+        #self.qapp.show()
         
-        self.qapp.exec_()
-        #self.canvas.manager.show = self._old_canvas_mn_show
-        plt.close(self.fig)
-        self._old_canvas_mn_show()
-        #plt.close(self.fig)
-        #self.qapp.quit()
-        print(id(plt.gcf()), id(self.fig))
-        #plt.close('all')
-        print(id(plt.gcf()), id(self.fig))
-        print(id(plt.gcf()), id(self.fig))
-        
-        print('close')
+class CheckBox(QCheckBox):
+    def keyPressEvent(self, event):
+        if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
+            self.nextCheckState()
+        super(CheckBox, self).keyPressEvent(event)
 
 class CanvasManager(object):
     def __init__(self, show_func):
@@ -278,20 +279,27 @@ class CanvasManager(object):
         return self._show()
 
 
-def interactive_subplots(nrows=1, ncols=1, figsize=(5,3), constrained_layout=True, title=None, **kwargs):
-    app = PlotWindow(nrows, ncols, figsize=figsize, constrained_layout=True, title=title, **kwargs)
-    fig, ax = app.fig, app.ax
-    return app, fig, ax
+def interactive_subplots(nrows=1, ncols=1, **kwargs):
+    app = PlotWindow(nrows, ncols, **kwargs)
+    ax = np.array(app.ax)
+
+    if kwargs.get('squeeze', True):
+        ax = ax.item() if ax.size == 1 else ax.squeeze()
+
+    return app.fig, ax
 
 if __name__ == "__main__":
-    matplotlib.use('Qt5Agg')
-    #print(id(plt.gcf()))
-    app, fig, ax = interactive_subplots(1,2)
-    print('hello')
-    #fig, ax = plt.subplots(1,2)
+
+    fig, ax = interactive_subplots(1,1, constrained_layout=True)
+
     t = np.linspace(0, 10, 101)
+    ax.plot(t, np.sin(t), label='sin')
+    ax.plot(t, np.cos(t), label='cos')
+    
+    fig, ax = interactive_subplots(2,1, link_all=True, show_xlabel=True)
+
     ax[0].plot(t, np.sin(t), label='sin')
     ax[1].plot(t, np.cos(t), label='cos')
-    
-    fig.marker_enable(link_all=True, show_xlabel=True)
-    plt.show(block=True)
+    ax[1].plot(t, np.sin(t), label='cos')
+
+    plt.show()
