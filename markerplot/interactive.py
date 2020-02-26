@@ -66,12 +66,17 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         #self.fig = Figure(figsize=figsize, constrained_layout=constrained_layout)
         print(kwargs)
+
+        subplot_kw = {}
+        if 'subplot_kw' in kwargs:
+            subplot_kw = kwargs.pop('subplot_kw')
+
         self.fig = plt.figure(**kwargs)
         
         self.ax = self.fig.subplots(nrows, ncols, squeeze=False, 
             sharex=kwargs.get('sharex', False), 
             sharey=kwargs.get('sharey', False), 
-            subplot_kw =kwargs.get('subplot_kw', None), 
+            subplot_kw =subplot_kw, 
             gridspec_kw=kwargs.get('gridspec_kw', None))
 
         marker_kw = {} if marker_kw == None else marker_kw

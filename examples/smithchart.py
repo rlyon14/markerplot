@@ -6,6 +6,7 @@ import numpy as np
 import markerplot
 from matplotlib import ticker
 from rfnetwork import Sparam, format_smithchart, db20
+from markerplot import interactive_subplots
 
 dir_ = Path(__file__).parent
 
@@ -14,7 +15,7 @@ matplotlib.use('Qt4Agg')
 tga2598 = Sparam(dir_ / r'data/TGA2598-SM.s2p')
 qpl9057 = Sparam(dir_ / r'data/QPL9057.s2p')
 
-fig, ax1 = plt.subplots(1, 1, figsize=(10,5), constrained_layout=True)
+fig, ax1 = interactive_subplots(1, 1, figsize=(10,5), constrained_layout=True)
 
 def yformat(x,y,mxd):
     return '{:.3f}'.format(mxd)
@@ -29,11 +30,11 @@ line = ax1.plot(np.real(qpl9057.sdata[:,0,0]), np.imag(qpl9057.sdata[:,0,0]), ma
 ax1.marker_add(3)
 
 
-fig, ax = plt.subplots(1, 1, figsize=(10,5), constrained_layout=True)
+fig, ax = interactive_subplots(1, 1, figsize=(10,5), constrained_layout=True)
 fig.marker_enable(show_xlabel=True)
 ax.marker_link(ax1)
 ax.grid(True)
-ax.plot(tga2598.freq/1e9, db20(tga2598.sdata[:,0,0]))
-ax.plot(qpl9057.freq/1e9, db20(qpl9057.sdata[:,0,0]))
+ax.plot(tga2598.freq/1e9, db20(tga2598.sdata[:,0,0]), label='tga')
+ax.plot(qpl9057.freq/1e9, db20(qpl9057.sdata[:,0,0]), label='qpl')
 ax.marker_add(3)
 plt.show()

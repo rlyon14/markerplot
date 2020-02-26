@@ -5,13 +5,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 #from fig2pptx import fig2pptx
 
-import markerplot
+
+from markerplot import interactive_subplots
 
 dir_ = Path(__file__).parent
 
 #matplotlib.use('Qt4Agg') 
 
-fig, axes = plt.subplots(1,1, subplot_kw=dict(polar=True))
+def xdata_to_theta(x, y, **kwargs):
+    return '{:.3f}\n$\\theta$={:.3f}'.format(y, x* (180/np.pi))
+
+fig, axes = interactive_subplots(1,1, subplot_kw=dict(polar=True), show_xlabel=True, yformat=xdata_to_theta, wrap=True, show_xline=True)
 
 axes.set_thetamin(-180)
 axes.set_thetamax(180)
@@ -24,10 +28,8 @@ axes.set_thetagrids(np.hstack((np.arange(0, 180 + 30, 30), (np.arange(30, 180, 3
 #print(axes.__dict__)
 #print(axes.transAxes.transform)
 
-def xdata_to_theta(x, y, **kwargs):
-    return '{:.3f}\n$\\theta$={:.3f}'.format(y, x* (180/np.pi))
 
-fig.marker_enable(show_xlabel=True, yformat=xdata_to_theta, wrap=True, show_xline=True)
+
 
 
 ## link all markers between ax1 and ax2 (interactive only)
