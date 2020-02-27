@@ -16,9 +16,10 @@ ax1.grid(linewidth=0.5, linestyle='-')
 
 fig2, ax2 = interactive_subplots(1, 1, constrained_layout=True, figsize=(10,5))
 ax2.grid(linewidth=0.5, linestyle='-')
-#par1 = ax1.twinx()
+par1 = ax1.twinx()
 
 ## bring ax1 to top instead of par1
+print(id(ax1))
 fig1.marker_enable(show_xline=True, show_xlabel=False, top_axes=ax1)
 fig2.marker_enable(show_xline=True, show_xlabel=False)
 
