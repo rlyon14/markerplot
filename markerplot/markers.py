@@ -409,7 +409,7 @@ class Marker(object):
 
             ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
-            xl, yl = self.data2display(ax, (xd, yd))
+            xl, yl = self.data2display(ax, (np.real(xd), np.real(yd)))
 
             if (not np.isfinite(yd)):
                 self.ytext[i].set_visible(False)
@@ -830,7 +830,7 @@ class MarkerManager(object):
         identical = False
         draw = 0
         while not identical:
-            print('event', draw)
+            #print('event', draw)
             identical = self.update_all()
             self.draw_all(animated=False)
             draw += 1

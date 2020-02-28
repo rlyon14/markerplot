@@ -40,6 +40,7 @@ dir_ = Path(__file__).parent
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
         matplotlib.use('Qt5Agg')
+
         self.qapp = QtWidgets.QApplication(sys.argv)
         
         super().__init__()
@@ -51,45 +52,47 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self._main)
         self.layout = QGridLayout(self._main)
 
+        
         marker_kw = {}
-
         for k in marker_default_params.keys():
             if k in kwargs.keys():
                 v = kwargs.pop(k)
                 marker_kw[k] = v
 
-        for k in ['interactive', 'top_axes', 'link_all']:
-            if k in kwargs.keys():
-                v = kwargs.pop(k)
-                marker_kw[k] = v
 
+        title = kwargs.pop('title', None)
+        
+        
+        marker_kw['interactive'] = kwargs.pop('interactive', True)
+        marker_kw['top_axes'] = kwargs.pop('top_axes', None)
+        marker_kw['link_all'] = kwargs.pop('link_all', False)
+
+
+        self.single_trace = kwargs.pop('single_trace', False)
+    
 
         #self.fig = Figure(figsize=figsize, constrained_layout=constrained_layout)
-        print(kwargs)
+        #print(kwargs)
 
-        subplot_kw = {}
-        if 'subplot_kw' in kwargs:
-            subplot_kw = kwargs.pop('subplot_kw')
+        subplot_kw = kwargs.pop('subplot_kw', {})
+        sharex = False
+        sharey = False
+        gridspec_kw = kwargs.pop('gridspec_kw', None)
 
         self.fig = plt.figure(**kwargs)
         
         self.ax = self.fig.subplots(nrows, ncols, squeeze=False, 
-            sharex=kwargs.get('sharex', False), 
-            sharey=kwargs.get('sharey', False), 
+            sharex=sharex, 
+            sharey=sharey, 
             subplot_kw =subplot_kw, 
-            gridspec_kw=kwargs.get('gridspec_kw', None))
-
-        marker_kw = {} if marker_kw == None else marker_kw
+            gridspec_kw=gridspec_kw)
         
         
         self.nrows = nrows
         self.ncols = ncols
 
         for ax in self.ax.flatten():
-            print('INIT')
             ax.grid()
-            print(id(ax))
-            print('  ')
         
         self.canvas = self.fig.canvas
         self.canvas.mpl_disconnect(self.canvas.manager.key_press_handler_id)
@@ -99,7 +102,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.layout.addWidget(self.canvas, 0,0, (self.nrows*self.ncols)+1, 1)
         
         toolbar = self.build_toolbar()
-        print(toolbar, id(toolbar))
+
         self.addToolBar(toolbar)
         self.fig.canvas.toolbar = toolbar
         self.canvas.setFocusPolicy( QtCore.Qt.ClickFocus )
@@ -109,13 +112,14 @@ class PlotWindow(QtWidgets.QMainWindow):
         p.setColor(self.backgroundRole(), Qt.white)
         self.setPalette(p)
 
-        title = kwargs.get('title', None)
+        
         title = 'Figure {}'.format(self.fig.canvas.manager.num) if title == None else title
         self.setWindowTitle(title)
         self.auto_layout = kwargs.get('constrained_layout', False) or kwargs.get('tight_layout', False)
 
         
         self.fig.marker_enable(**marker_kw)
+        self.draw_updates = False
 
 
     def build_toolbar(self):
@@ -200,8 +204,16 @@ class PlotWindow(QtWidgets.QMainWindow):
 
                     cb = CheckBox('')#QCheckBox('')
                     self.traces_cb[i].append((cb, l, label))
-                    cb.stateChanged.connect(self.state_changed)
+                    
+
                     cb.setChecked(True)
+
+                    cb.stateChanged.connect(self.state_changed(ax, l, cb, label))
+                    if self.single_trace:
+                        cb.setChecked(row==0)
+
+                    
+
                     qlabel = self.createCheckBoxLabel(label, size=14)
                     
                     layout.addWidget(cb, row, 0)
@@ -211,20 +223,36 @@ class PlotWindow(QtWidgets.QMainWindow):
 
             layout.setAlignment(Qt.AlignLeft)
             self.traces[i].setLayout(layout)  
+            
+            ax.legend(fontsize='small', loc='best')
+        self.draw_updates = True
         # self.menu_scroll = QScrollArea(widgetResizable=False)
         # self.menu_scroll.setWidget(self.traces)
 
-    def state_changed(self):
-        for i, ax in enumerate(self.ax.flatten()):
-            for ii, (cb, l, label) in enumerate(self.traces_cb[i]):
-                state = cb.isChecked()
-                l.set_visible(state)
-                if state:
-                    l.set_label(label)
-                else:
-                    l.set_label('')
+    def state_changed(self, ax, l, cb, label):
+        # for i, ax in enumerate(self.ax.flatten()):
+        #     for ii, (cb, l, label) in enumerate(self.traces_cb[i]):
+        #         state = cb.isChecked()
+        #         l.set_visible(state)
+        #         if state:
+        #             l.set_label(label)
+        #         else:
+        #             l.set_label('')
+
+        def calluser():
+            state = cb.isChecked()
+            l.set_visible(state)
+            if state:
+                l.set_label(label)
+            else:
+                l.set_label('')
+
             ax.legend(fontsize='small', loc='best')
-        self.canvas.draw()
+        
+            if self.draw_updates:
+                self.canvas.draw()
+        return calluser
+
     
     def set_tight_layout(self):
         self.fig.tight_layout()
@@ -263,8 +291,8 @@ class PlotWindow(QtWidgets.QMainWindow):
             self.layout.setColumnStretch(0, 1)
             self.layout.setRowStretch(i+1, 1)
         
-        if not self.auto_layout:
-            plt.tight_layout()
+        #if not self.auto_layout:
+            #plt.tight_layout()
 
         self.show()
         

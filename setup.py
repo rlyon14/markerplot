@@ -8,7 +8,7 @@ setup(
     version='0.1.1',
     packages=['markerplot',],
     install_requires=(
-		'matplotlib>=3.1.0',
+		'matplotlib>=3.1.3',
         'numpy',
         'gorilla',
         'pyqt5',
