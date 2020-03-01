@@ -1,5 +1,5 @@
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QGridLayout, QLabel,
+from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
                              QLabel, QSizePolicy, QSlider, QSpacerItem, QPushButton, QScrollArea,
                              QVBoxLayout, QWidget, QStyleFactory, QGroupBox, QCheckBox)
 
@@ -61,6 +61,10 @@ class PlotWindow(QtWidgets.QMainWindow):
 
 
         title = kwargs.pop('title', None)
+        icon = kwargs.pop('icon', None)
+
+        if icon != None:
+            self.setWindowIcon(QtGui.QIcon(str(icon)))
         
         
         marker_kw['interactive'] = kwargs.pop('interactive', True)
@@ -71,19 +75,16 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.single_trace = kwargs.pop('single_trace', False)
     
 
-        #self.fig = Figure(figsize=figsize, constrained_layout=constrained_layout)
-        #print(kwargs)
-
         subplot_kw = kwargs.pop('subplot_kw', {})
-        sharex = False
-        sharey = False
+        sharex = kwargs.pop('sharex', False)
+        sharey = kwargs.pop('sharey', False)
         gridspec_kw = kwargs.pop('gridspec_kw', None)
 
         self.fig = plt.figure(**kwargs)
         
         self.ax = self.fig.subplots(nrows, ncols, squeeze=False, 
-            sharex=sharex, 
-            sharey=sharey, 
+            sharex=False, 
+            sharey=False, 
             subplot_kw =subplot_kw, 
             gridspec_kw=gridspec_kw)
         
@@ -91,20 +92,18 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.nrows = nrows
         self.ncols = ncols
 
-        for ax in self.ax.flatten():
-            ax.grid()
-        
+    
         self.canvas = self.fig.canvas
         self.canvas.mpl_disconnect(self.canvas.manager.key_press_handler_id)
-        #FigureCanvas(self.fig)
         
         self.canvas.manager.show = self._show
         self.layout.addWidget(self.canvas, 0,0, (self.nrows*self.ncols)+1, 1)
         
-        toolbar = self.build_toolbar()
+        self.toolbar = NavigationToolbar(self.canvas, self, coordinates=False)
+        self.build_toolbar()
 
-        self.addToolBar(toolbar)
-        self.fig.canvas.toolbar = toolbar
+        self.addToolBar(self.toolbar)
+        self.fig.canvas.toolbar = self.toolbar
         self.canvas.setFocusPolicy( QtCore.Qt.ClickFocus )
         self.canvas.setFocus()
 
@@ -112,52 +111,45 @@ class PlotWindow(QtWidgets.QMainWindow):
         p.setColor(self.backgroundRole(), Qt.white)
         self.setPalette(p)
 
-        
         title = 'Figure {}'.format(self.fig.canvas.manager.num) if title == None else title
         self.setWindowTitle(title)
-        self.auto_layout = kwargs.get('constrained_layout', False) or kwargs.get('tight_layout', False)
 
-        
         self.fig.marker_enable(**marker_kw)
+        self.fig.qapp = self
         self.draw_updates = False
+        self.createTracesGroup()
 
+    def add_toolbar_actions(self, *widgets, end=True):
+        for icon_path, name, tooltip, action in widgets:
+
+            icon = QtGui.QPixmap(str(icon_path))
+            icon.setDevicePixelRatio(self.canvas._dpi_ratio)
+            a = self.toolbar.addAction(QtGui.QIcon(icon), name, action)
+            a.setToolTip(tooltip)
+
+        if end:
+            locLabel = QLabel("", self.toolbar)
+            locLabel.setAlignment(
+                    QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
+            locLabel.setSizePolicy(
+                QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                                        QtWidgets.QSizePolicy.Ignored))
+            self.toolbar.addWidget(locLabel)
 
     def build_toolbar(self):
-        toolbar = NavigationToolbar(self.canvas, self, coordinates=False)
-        toolbar.removeAction(toolbar._actions['configure_subplots'])
-        # toolbar.removeAction(toolbar._actions['forward'])
-        # toolbar.removeAction(toolbar._actions['back'])
-
-        icon = QtGui.QPixmap(str(dir_  / 'icons/layout_large.png'))
-
-        icon.setDevicePixelRatio(self.canvas._dpi_ratio)
-
-
-
-        a = toolbar.addAction(QtGui.QIcon(icon),
-                    'Customize', self.set_tight_layout)
-        a.setToolTip('Apply Tight Layout')
-
-        ## Copy
-        icon = QtGui.QPixmap(str(dir_  / 'icons/copy_large.png'))
-
-        icon.setDevicePixelRatio(self.canvas._dpi_ratio)
-
-        a = toolbar.addAction(QtGui.QIcon(icon),
-                    'Customize', self.copy_figure)
-        a.setToolTip('Copy To Clipboard')
-
-
-        toolbar.coordinates = False
         
-        locLabel = QLabel("", toolbar)
-        locLabel.setAlignment(
-                QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
-        locLabel.setSizePolicy(
-            QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding,
-                                    QtWidgets.QSizePolicy.Ignored))
-        toolbar.addWidget(locLabel)
-        return toolbar
+        self.toolbar.removeAction(self.toolbar._actions['configure_subplots'])
+        self.toolbar.removeAction(self.toolbar._actions['forward'])
+        self.toolbar.removeAction(self.toolbar._actions['back'])
+
+        widgets = [(str(dir_  / 'icons/layout_large.png'), 'Layout', 'Apply Tight Layout', self.set_tight_layout),
+                   (str(dir_  / 'icons/copy_large.png'), 'Copy', 'Copy To Clipboard', self.copy_figure),
+                   (str(dir_  / 'icons/erase_large.png'), 'Delete', 'Remove All Markers', self.remove_all),
+        ]
+
+        self.add_toolbar_actions(*widgets, end=False)
+        self.toolbar.addSeparator()
+        
             
     def createCheckBoxLabel(self, label, size=14):
         r,g,b,a=self.palette().base().color().getRgbF()
@@ -184,17 +176,22 @@ class PlotWindow(QtWidgets.QMainWindow):
         return _canvas
 
     def createTracesGroup(self):
-        self.traces = [None]*(self.nrows * self.ncols)
+        self.traces = [(None, None)]*(self.nrows * self.ncols)
         for i in range(self.nrows):
             for j in range(self.ncols):
-                self.traces[i*self.ncols + j] = QGroupBox("Axes {},{}".format(i,j))
+                layout = QGridLayout()
+                layout.setAlignment(Qt.AlignLeft)
+                 
+                self.traces[i*self.ncols + j] = (QGroupBox("Axes {},{}".format(i,j)), layout)
+                self.traces[i*self.ncols + j][0].setLayout(layout) 
 
+    def update_traces_group(self, remove=True):
 
         self.traces_cb = [[]]*(self.nrows * self.ncols)
+        self.draw_updates = False
         
         for i, ax in enumerate(self.ax.flatten()):
             row = 0
-            layout = QGridLayout()
             for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
                 for l in ax_shared.lines:
 
@@ -205,39 +202,40 @@ class PlotWindow(QtWidgets.QMainWindow):
                     cb = CheckBox('')#QCheckBox('')
                     self.traces_cb[i].append((cb, l, label))
                     
-
                     cb.setChecked(True)
 
-                    cb.stateChanged.connect(self.state_changed(ax, l, cb, label))
+                    cb.stateChanged.connect(self.state_changed(ax_shared, l, cb, label))
                     if self.single_trace:
                         cb.setChecked(row==0)
 
-                    
-
                     qlabel = self.createCheckBoxLabel(label, size=14)
                     
+                    layout = self.traces[i][1]
                     layout.addWidget(cb, row, 0)
                     layout.addWidget(qlabel, row, 1, alignment=Qt.AlignLeft)
                     
                     row += 1
 
-            layout.setAlignment(Qt.AlignLeft)
-            self.traces[i].setLayout(layout)  
-            
-            ax.legend(fontsize='small', loc='best')
+                leg_loc = ax_shared.get_legend()._loc_real if ax_shared.get_legend() != None else 0
+                ax_shared.legend(fontsize='small', loc=leg_loc)
         self.draw_updates = True
+
+        added_traces = False
+        for i, (tr, ly) in enumerate(self.traces):
+            if len(self.traces_cb[i]) > 1:
+                added_traces = True
+                self.layout.addWidget(tr, i, 1)
+        
+        if added_traces:
+            self.layout.addWidget(QGroupBox(), i+1,1)
+            self.layout.setColumnStretch(0, 1)
+            self.layout.setRowStretch(i+1, 1)
+
+
         # self.menu_scroll = QScrollArea(widgetResizable=False)
         # self.menu_scroll.setWidget(self.traces)
 
     def state_changed(self, ax, l, cb, label):
-        # for i, ax in enumerate(self.ax.flatten()):
-        #     for ii, (cb, l, label) in enumerate(self.traces_cb[i]):
-        #         state = cb.isChecked()
-        #         l.set_visible(state)
-        #         if state:
-        #             l.set_label(label)
-        #         else:
-        #             l.set_label('')
 
         def calluser():
             state = cb.isChecked()
@@ -247,12 +245,27 @@ class PlotWindow(QtWidgets.QMainWindow):
             else:
                 l.set_label('')
 
-            ax.legend(fontsize='small', loc='best')
+            leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
+            ax.legend(fontsize='small', loc=leg_loc)
         
             if self.draw_updates:
                 self.canvas.draw()
         return calluser
 
+    def remove_all(self):
+        for ax in self.fig.axes:
+            ax.marker_delete_all()
+            for l_ax in ax.marker_linked_axes:
+                l_ax.marker_delete_all()
+
+        self.fig.canvas.draw()
+        drawn = [self.fig]
+        for ax in self.fig.axes:
+            for l_ax in ax.marker_linked_axes:
+                fig = l_ax.figure
+                if fig not in drawn:
+                    fig.canvas.draw()
+                    drawn.append(fig)
     
     def set_tight_layout(self):
         self.fig.tight_layout()
@@ -278,21 +291,7 @@ class PlotWindow(QtWidgets.QMainWindow):
 
     def _show(self):
         
-        self.createTracesGroup()
-        
-        added_traces = False
-        for i, tr in enumerate(self.traces):
-            if len(self.traces_cb[i]) > 1:
-                added_traces = True
-                self.layout.addWidget(self.traces[i], i, 1)
-        
-        if added_traces:
-            self.layout.addWidget(QGroupBox(), i+1,1)
-            self.layout.setColumnStretch(0, 1)
-            self.layout.setRowStretch(i+1, 1)
-        
-        #if not self.auto_layout:
-            #plt.tight_layout()
+        self.update_traces_group(remove=False)
 
         self.show()
         
@@ -316,7 +315,9 @@ def interactive_subplots(nrows=1, ncols=1, **kwargs):
     app = PlotWindow(nrows, ncols, **kwargs)
     ax = np.array(app.ax)
 
-    if kwargs.get('squeeze', True):
+    squeeze = kwargs.pop('squeeze', True)
+
+    if squeeze:
         ax = ax.item() if ax.size == 1 else ax.squeeze()
 
     return app.fig, ax

@@ -47,6 +47,15 @@ def marker_delete(self, marker):
     self.markers.pop(idx)
     return self.markers[-1] if len(self.markers) > 0 else None
 
+def marker_delete_all(self):
+    """ remove all markers from axes
+    """
+    for m in self.markers:
+        m.remove()
+
+    self.marker_active = None
+    self.markers = []
+
 def marker_set_params(self, **kwargs):
     """ allows for updates to axes marker parameters if axes requires unique parameters
     """
@@ -99,9 +108,7 @@ def _marker_xformat(self, xd):
         return '{:.3f}'.format(xd)
 
 def plot(self, *args, **kwargs):
-    mxd = kwargs.get('marker_xd', None)
-    if 'marker_xd' in kwargs.keys():
-        kwargs.pop('marker_xd')
+    mxd = kwargs.pop('marker_xd', None)
 
     original = gorilla.get_original_attribute(self, 'plot')
     lines = original(*args, **kwargs)
@@ -111,6 +118,17 @@ def plot(self, *args, **kwargs):
             l._marker_xdata = mxd
 
     return lines
+
+def clear(self, *args, **kwargs):
+
+    original = gorilla.get_original_attribute(self, 'clear')
+    ret = original(*args, **kwargs)
+
+    self.marker_delete_all()
+    self.marker_ignorelines = []
+    self._draw_background = None
+
+    return ret
 
 ##############
 ############## 
@@ -164,7 +182,8 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
                     wrap: (bool) allow markers to wrap to other side of data array when using arrow keys
     """
     if interactive:
-        #if not hasattr(self, '_eventmanager'):
+        ## this will overwrite the reference to a previously defined event manager.
+        ## as long as the user didn't store the old reference, the previous event bindings will be disconnected
         self._eventmanager = MarkerManager(self, top_axes=top_axes)
 
     default_inst = dict(**marker_default_params)
@@ -185,6 +204,9 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
             patch = gorilla.Patch(ax.__class__, 'marker_delete', marker_delete)
             gorilla.apply(patch)
 
+            patch = gorilla.Patch(ax.__class__, 'marker_delete_all', marker_delete_all)
+            gorilla.apply(patch)
+
             patch = gorilla.Patch(ax.__class__, 'marker_set_params', marker_set_params)
             gorilla.apply(patch)
 
@@ -202,6 +224,9 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
 
             settings = gorilla.Settings(allow_hit=True, store_hit=True)
             patch = gorilla.Patch(ax.__class__, 'plot', plot, settings=settings)
+            gorilla.apply(patch)
+
+            patch = gorilla.Patch(ax.__class__, 'clear', clear, settings=settings)
             gorilla.apply(patch)
 
 

@@ -476,13 +476,17 @@ class Marker(object):
 
     def remove(self):
         self.xtext.set_visible(False)
-        idx = self.axes.lines.index(self.xline)
-        self.axes.lines.pop(idx)
+        self.xline.set_visible(False)
+        if self.xline in self.axes.lines:
+            idx = self.axes.lines.index(self.xline)
+            self.axes.lines.pop(idx)
 
-        for i, (ax,l) in enumerate(self.lines):		
-            idx = ax.lines.index(self.ydot[i])
-            ax.lines.pop(idx)
-            idx = self.ytext[i].set_visible(False)
+        for i, (ax,l) in enumerate(self.lines):	
+            if self.ydot[i] in ax.lines:
+                idx = ax.lines.index(self.ydot[i])
+                ax.lines.pop(idx)
+            self.ytext[i].set_visible(False)
+            self.ydot[i].set_visible(False)
 
     def contains_event(self, event):
         contains, attrd = self.xtext.contains(event)
@@ -540,7 +544,7 @@ class MarkerManager(object):
         self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
         self.ciddraw = self.fig.canvas.mpl_connect('draw_event', self.on_draw)
-        
+
     def axes_to_top(self, axes):
         max_zorder = 0
         for ax in axes.get_shared_x_axes().get_siblings(axes):
@@ -592,14 +596,6 @@ class MarkerManager(object):
             for l_ax in ax.marker_linked_axes:
                 for m in l_ax.markers:
                     m.set_animated(state)
-
-    def remove_all(self):
-        for ax in self.fig.axes:
-            for m in ax.markers:
-                m.remove()
-            for l_ax in ax.marker_linked_axes:
-                for m in l_ax.markers:
-                    m.remove()
 
     def set_active_animated(self):
         for ax in self.fig.axes:
