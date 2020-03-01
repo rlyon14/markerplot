@@ -115,7 +115,8 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(title)
 
         self.fig.marker_enable(**marker_kw)
-        self.fig.qapp = self
+        self.fig.qapp = self.qapp
+        self.fig.app = self
         self.draw_updates = False
         self.createTracesGroup()
 

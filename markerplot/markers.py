@@ -297,6 +297,17 @@ class Marker(object):
         if self.show_xlabel:
             ymin = xlabel_dim.y1 + self.ylabel_ypad
 
+        if xlabel_dim.x0 < xmin:
+            ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
+            xpos = xmin
+            self.xtext.set_position((xpos, ypos))
+
+        if xlabel_dim.x1 > xmax:
+            ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
+            xpos = xmax - (xlabel_dim.x1 - xlabel_dim.x0)
+            self.xtext.set_position((xpos, ypos))
+
+
         ## generate list of ylabel locations
         dims = []
         ylocs = []
@@ -344,16 +355,6 @@ class Marker(object):
 
             ## set position
             ytext.set_position((xloc, yloc))
-        
-        if xlabel_dim.x0 < xmin:
-            ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
-            xpos = xmin
-            self.xtext.set_position((xpos, ypos))
-
-        if xlabel_dim.x1 > xmax:
-            ypos = (xlabel_dim.y1 + xlabel_dim.y0)/2
-            xpos = xmax - (xlabel_dim.x1 - xlabel_dim.x0)
-            self.xtext.set_position((xpos, ypos))
 
     def move_to_point(self, xd=None, disp=None, idx=None):
         
