@@ -88,11 +88,9 @@ class PlotWindow(QtWidgets.QMainWindow):
             subplot_kw =subplot_kw, 
             gridspec_kw=gridspec_kw)
         
-        
         self.nrows = nrows
         self.ncols = ncols
 
-    
         self.canvas = self.fig.canvas
         self.canvas.mpl_disconnect(self.canvas.manager.key_press_handler_id)
         
@@ -202,6 +200,7 @@ class PlotWindow(QtWidgets.QMainWindow):
 
                     cb = CheckBox('')#QCheckBox('')
                     self.traces_cb[i].append((cb, l, label))
+                    l.ymin, l.ymax  = np.min(l.get_ydata()), np.max(l.get_ydata())
                     
                     cb.setChecked(True)
 
@@ -236,6 +235,28 @@ class PlotWindow(QtWidgets.QMainWindow):
         # self.menu_scroll = QScrollArea(widgetResizable=False)
         # self.menu_scroll.setWidget(self.traces)
 
+    def scale_ylim_visible(self, axes):
+        stime = time.time()
+        # for i, ax in enumerate(self.ax.flatten()):
+        miny, maxy = np.inf, -np.inf
+        #for ax in axes.get_shared_x_axes().get_siblings(axes):
+        for l in axes.lines:
+            if not l.get_visible() or l.get_label() == '' or l.get_label()[0] == '_':
+                continue
+
+            miny = l.ymin if l.ymin < miny else miny
+            maxy = l.ymax if l.ymax > maxy else maxy
+
+        if miny < np.inf and maxy > -np.inf:
+            pad = (maxy - miny)/20
+            max_y = maxy + pad
+            min_y = miny - pad
+            axes.set_ylim([min_y, max_y])
+
+        print(time.time()-stime)
+                
+
+
     def state_changed(self, ax, l, cb, label):
 
         def calluser():
@@ -250,6 +271,7 @@ class PlotWindow(QtWidgets.QMainWindow):
             ax.legend(fontsize='small', loc=leg_loc)
         
             if self.draw_updates:
+                self.scale_ylim_visible(ax)
                 self.canvas.draw()
         return calluser
 
@@ -270,6 +292,7 @@ class PlotWindow(QtWidgets.QMainWindow):
     
     def set_tight_layout(self):
         self.fig.tight_layout()
+        #self.scale_ylim_visible()
         self.canvas.draw()
 
     def copy_figure(self):
@@ -305,11 +328,11 @@ class CheckBox(QCheckBox):
             self.nextCheckState()
         super(CheckBox, self).keyPressEvent(event)
 
-class CanvasManager(object):
-    def __init__(self, show_func):
-        self._show = show_func
-    def show(self):
-        return self._show()
+# class CanvasManager(object):
+#     def __init__(self, show_func):
+#         self._show = show_func
+#     def show(self):
+#         return self._show()
 
 
 def interactive_subplots(nrows=1, ncols=1, **kwargs):
@@ -328,13 +351,13 @@ if __name__ == "__main__":
     fig, ax = interactive_subplots(1,1, constrained_layout=True)
 
     t = np.linspace(0, 10, 101)
-    ax.plot(t, np.sin(t), label='sin')
-    ax.plot(t, np.cos(t), label='cos')
+    ax.plot(t, 10*np.sin(t), label='sin')
+    ax.plot(t, t*4, label='cos')
     
     fig, ax = interactive_subplots(2,1, link_all=True, show_xlabel=True)
 
     ax[0].plot(t, np.sin(t), label='sin')
     ax[1].plot(t, np.cos(t), label='cos')
-    ax[1].plot(t, np.sin(t), label='cos')
+    ax[1].plot(t, 10*np.sin(t), label='cos')
 
     plt.show()
