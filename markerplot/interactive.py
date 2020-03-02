@@ -70,6 +70,9 @@ class PlotWindow(QtWidgets.QMainWindow):
         marker_kw['interactive'] = kwargs.pop('interactive', True)
         marker_kw['top_axes'] = kwargs.pop('top_axes', None)
         marker_kw['link_all'] = kwargs.pop('link_all', False)
+    
+
+        self.autoscale = kwargs.pop('autoscale', True)
 
 
         self.single_trace = kwargs.pop('single_trace', False)
@@ -200,7 +203,10 @@ class PlotWindow(QtWidgets.QMainWindow):
 
                     cb = CheckBox('')#QCheckBox('')
                     self.traces_cb[i].append((cb, l, label))
-                    l.ymin, l.ymax  = np.min(l.get_ydata()), np.max(l.get_ydata())
+
+                    y = l.get_ydata()
+                    y = np.where(np.isinf(y), np.nan, y)
+                    l.ymin, l.ymax  = np.nanmin(y), np.nanmax(y)
                     
                     cb.setChecked(True)
 
@@ -236,24 +242,25 @@ class PlotWindow(QtWidgets.QMainWindow):
         # self.menu_scroll.setWidget(self.traces)
 
     def scale_ylim_visible(self, axes):
-        stime = time.time()
         # for i, ax in enumerate(self.ax.flatten()):
         miny, maxy = np.inf, -np.inf
         #for ax in axes.get_shared_x_axes().get_siblings(axes):
         for l in axes.lines:
             if not l.get_visible() or l.get_label() == '' or l.get_label()[0] == '_':
                 continue
-
+            
             miny = l.ymin if l.ymin < miny else miny
             maxy = l.ymax if l.ymax > maxy else maxy
 
-        if miny < np.inf and maxy > -np.inf:
+            print(miny, maxy)
+
+        if self.autoscale and np.all(np.isfinite([miny, maxy])):
             pad = (maxy - miny)/20
+            print(pad, miny, maxy)
             max_y = maxy + pad
             min_y = miny - pad
             axes.set_ylim([min_y, max_y])
 
-        print(time.time()-stime)
                 
 
 
@@ -316,6 +323,9 @@ class PlotWindow(QtWidgets.QMainWindow):
     def _show(self):
         
         self.update_traces_group(remove=False)
+
+        for ax in self.fig.axes:
+            self.scale_ylim_visible(ax)
 
         self.show()
         
