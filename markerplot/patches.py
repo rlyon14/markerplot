@@ -47,6 +47,15 @@ def marker_delete(self, marker):
     self.markers.pop(idx)
     return self.markers[-1] if len(self.markers) > 0 else None
 
+def marker_delete_all(self):
+    """ remove all markers from axes
+    """
+    for m in self.markers:
+        m.remove()
+
+    self.marker_active = None
+    self.markers = []
+
 def marker_set_params(self, **kwargs):
     """ allows for updates to axes marker parameters if axes requires unique parameters
     """
@@ -58,35 +67,33 @@ def marker_ignore(self, *lines):
     lines = list(lines)
     self.marker_ignorelines += lines
 
-def marker_link(self, *axes, byindex=False):
+def marker_link(self, *axes):
     """ --interactive only--
         links axes together so that any interactive change to markers on axes one is reflected in the other
 
         Parameters
         ----------
             axes: (Axes object) axes that will be linked to current axes (self)
-            byindex: (bool) if True, each marker will be linked by xdata index rather than xdata value
-                     This will force each axes into index mode, meaning every data line must have identical xdata lengths.
 
         Warning: 
         If manual markers are placed in linked axes with axes.marker_add(), interactive markers will fail if the 
         number of markers are not kept equal between linked axes.
     """
     axes = list(axes)
-    self._force_index_mode = byindex
     for ax in axes:
         if ax in self.marker_linked_axes or ax == self:
             continue
         self.marker_linked_axes.append(ax)
         ax.marker_linked_axes.append(self)
-        ax._force_index_mode = byindex
 
-def _marker_yformat(self, xd, yd, idx=None):
+def _marker_yformat(self, xd, yd, mxd=None):
     yformatter = self.yaxis.get_major_formatter()
     if self.marker_params['yformat'] != None:
-        return self.marker_params['yformat'](xd, yd, idx=idx)
+        return self.marker_params['yformat'](xd, yd, mxd=mxd)
+
     elif not isinstance(yformatter, (ticker.ScalarFormatter, ticker.FixedFormatter)) and self.marker_params['inherit_ticker']:
         return yformatter(yd)
+
     else:
         return '{:.3f}'.format(yd)
 
@@ -100,9 +107,45 @@ def _marker_xformat(self, xd):
     else:
         return '{:.3f}'.format(xd)
 
+def plot(self, *args, **kwargs):
+    mxd = kwargs.pop('marker_xd', None)
+
+    original = gorilla.get_original_attribute(self, 'plot')
+    lines = original(*args, **kwargs)
+
+    if np.any(mxd):
+        for l in lines:
+            l._marker_xdata = mxd
+
+    return lines
+
+def clear(self, *args, **kwargs):
+
+    original = gorilla.get_original_attribute(self, 'clear')
+    ret = original(*args, **kwargs)
+
+    self.marker_delete_all()
+    self.marker_ignorelines = []
+    self._draw_background = None
+
+    return ret
+
 ##############
 ############## 
 
+marker_default_params = dict(
+        show_xline=True,
+        yformat= None,
+        xformat= None,
+        show_xlabel=False,
+        xreversed=False, 
+        alpha=0.7,
+        wrap = False,
+        xlabel_pad = 6,
+        ylabel_xpad = 10,
+        ylabel_ypad = 4,
+        inherit_ticker = True,
+    )
 
 ####################
 ## Figure Patches ##
@@ -139,39 +182,29 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
                     wrap: (bool) allow markers to wrap to other side of data array when using arrow keys
     """
     if interactive:
+        ## this will overwrite the reference to a previously defined event manager.
+        ## as long as the user didn't store the old reference, the previous event bindings will be disconnected
         self._eventmanager = MarkerManager(self, top_axes=top_axes)
 
-    default_params = dict(
-        show_xline=True,
-        show_dot=True,
-        yformat= None,
-        xformat= None,
-        show_xlabel=False,
-        xreversed=False, 
-        alpha=0.7,
-        wrap = False,
-        xlabel_pad = 6,
-        ylabel_xpad = 10,
-        ylabel_ypad = 4,
-        inherit_ticker = True
-    )
-
-    default_params.update(dict(**marker_params))
+    default_inst = dict(**marker_default_params)
+    default_inst.update(dict(**marker_params))
 
     for ax in self.axes:
         ax.markers = []
-        ax.marker_params = dict(**default_params)
+        ax.marker_params = dict(**default_inst)
         ax.marker_ignorelines = []
         ax.marker_active = None
         ax.marker_linked_axes = []
         ax._draw_background = None
-        ax._force_index_mode = False
         
         if not hasattr(ax.__class__, 'marker_add'):
             patch = gorilla.Patch(ax.__class__, 'marker_add', marker_add)
             gorilla.apply(patch)
 
             patch = gorilla.Patch(ax.__class__, 'marker_delete', marker_delete)
+            gorilla.apply(patch)
+
+            patch = gorilla.Patch(ax.__class__, 'marker_delete_all', marker_delete_all)
             gorilla.apply(patch)
 
             patch = gorilla.Patch(ax.__class__, 'marker_set_params', marker_set_params)
@@ -187,6 +220,13 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
             gorilla.apply(patch)
 
             patch = gorilla.Patch(ax.__class__, '_marker_yformat', _marker_yformat)
+            gorilla.apply(patch)
+
+            settings = gorilla.Settings(allow_hit=True, store_hit=True)
+            patch = gorilla.Patch(ax.__class__, 'plot', plot, settings=settings)
+            gorilla.apply(patch)
+
+            patch = gorilla.Patch(ax.__class__, 'clear', clear, settings=settings)
             gorilla.apply(patch)
 
 

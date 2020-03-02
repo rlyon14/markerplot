@@ -27,9 +27,9 @@ print(l1)
 ax2.plot(x1, np.sin(x1))
 ax3.plot(x1, np.cos(x1))
 
-ax1.marker_add(xd=2, lines=l1)
-ax2.marker_add(xd=2)
-ax3.marker_add(xd=2)
+# ax1.marker_add(xd=2, lines=l1)
+# ax2.marker_add(xd=2)
+# ax3.marker_add(xd=2)
 
 ax1.xaxis.set_major_formatter(ticker.EngFormatter(unit="Hz"))
 ax2.yaxis.set_major_formatter(ticker.EngFormatter(unit="Hz"))
