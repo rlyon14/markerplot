@@ -52,7 +52,6 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self._main)
         self.layout = QGridLayout(self._main)
 
-        
         marker_kw = {}
         for k in marker_default_params.keys():
             if k in kwargs.keys():
