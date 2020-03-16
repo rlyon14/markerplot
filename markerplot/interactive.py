@@ -251,11 +251,11 @@ class PlotWindow(QtWidgets.QMainWindow):
             miny = l.ymin if l.ymin < miny else miny
             maxy = l.ymax if l.ymax > maxy else maxy
 
-            print(miny, maxy)
+            #printprintprint(miny, maxy)
 
         if self.autoscale and np.all(np.isfinite([miny, maxy])):
             pad = (maxy - miny)/20
-            print(pad, miny, maxy)
+            #print(pad, miny, maxy)
             max_y = maxy + pad
             min_y = miny - pad
             axes.set_ylim([min_y, max_y])
