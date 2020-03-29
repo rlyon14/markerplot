@@ -4,7 +4,6 @@ from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QGridLayout, QLabel, QLi
                              QVBoxLayout, QWidget, QStyleFactory, QGroupBox, QCheckBox)
 
 from PyQt5 import QtWidgets, QtCore, QtGui
-#from PyQt5.Qtgui import QImage
 import numpy as np
 
 from pathlib import Path
@@ -24,7 +23,6 @@ import win32clipboard
 from PIL import Image
 
 import numpy as np
-# from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from matplotlib.backends.qt_compat import QtCore, QtWidgets, is_pyqt5
 
 from matplotlib.backends.backend_qt5agg import (
@@ -34,8 +32,6 @@ from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
-
-
 
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
@@ -237,13 +233,11 @@ class PlotWindow(QtWidgets.QMainWindow):
             self.layout.setRowStretch(i+1, 1)
 
 
-        # self.menu_scroll = QScrollArea(widgetResizable=False)
-        # self.menu_scroll.setWidget(self.traces)
-
     def scale_ylim_visible(self, axes):
-        # for i, ax in enumerate(self.ax.flatten()):
+        if not self.autoscale:
+            return
+
         miny, maxy = np.inf, -np.inf
-        #for ax in axes.get_shared_x_axes().get_siblings(axes):
         for l in axes.lines:
             if not l.get_visible() or l.get_label() == '' or l.get_label()[0] == '_':
                 continue
@@ -251,18 +245,13 @@ class PlotWindow(QtWidgets.QMainWindow):
             miny = l.ymin if l.ymin < miny else miny
             maxy = l.ymax if l.ymax > maxy else maxy
 
-            #printprintprint(miny, maxy)
-
-        if self.autoscale and np.all(np.isfinite([miny, maxy])):
+        if np.all(np.isfinite([miny, maxy])):
             pad = (maxy - miny)/20
-            #print(pad, miny, maxy)
             max_y = maxy + pad
             min_y = miny - pad
             axes.set_ylim([min_y, max_y])
 
                 
-
-
     def state_changed(self, ax, l, cb, label):
 
         def calluser():
@@ -298,7 +287,6 @@ class PlotWindow(QtWidgets.QMainWindow):
     
     def set_tight_layout(self):
         self.fig.tight_layout()
-        #self.scale_ylim_visible()
         self.canvas.draw()
 
     def copy_figure(self):
@@ -328,20 +316,11 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         self.show()
         
-        #self.qapp.exec_()
-        #self.qapp.show()
-        
 class CheckBox(QCheckBox):
     def keyPressEvent(self, event):
         if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
             self.nextCheckState()
         super(CheckBox, self).keyPressEvent(event)
-
-# class CanvasManager(object):
-#     def __init__(self, show_func):
-#         self._show = show_func
-#     def show(self):
-#         return self._show()
 
 
 def interactive_subplots(nrows=1, ncols=1, **kwargs):
@@ -355,18 +334,3 @@ def interactive_subplots(nrows=1, ncols=1, **kwargs):
 
     return app.fig, ax
 
-if __name__ == "__main__":
-
-    fig, ax = interactive_subplots(1,1, constrained_layout=True)
-
-    t = np.linspace(0, 10, 101)
-    ax.plot(t, 10*np.sin(t), label='sin')
-    ax.plot(t, t*4, label='cos')
-    
-    fig, ax = interactive_subplots(2,1, link_all=True, show_xlabel=True)
-
-    ax[0].plot(t, np.sin(t), label='sin')
-    ax[1].plot(t, np.cos(t), label='cos')
-    ax[1].plot(t, 10*np.sin(t), label='cos')
-
-    plt.show()
