@@ -1,9 +1,9 @@
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
+from PySide2.QtCore import Qt
+from PySide2.QtWidgets import (QApplication, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
                              QLabel, QSizePolicy, QSlider, QSpacerItem, QPushButton, QScrollArea,
                              QVBoxLayout, QWidget, QStyleFactory, QGroupBox, QCheckBox)
 
-from PyQt5 import QtWidgets, QtCore, QtGui
+from PySide2 import QtWidgets, QtCore, QtGui
 import numpy as np
 
 from pathlib import Path
@@ -33,11 +33,13 @@ import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
 
+qapp = QtWidgets.QApplication(sys.argv)
+
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
         matplotlib.use('Qt5Agg')
 
-        self.qapp = QtWidgets.QApplication(sys.argv)
+        self.qapp = qapp#QtWidgets.QApplication(sys.argv)
         
         super().__init__()
 
