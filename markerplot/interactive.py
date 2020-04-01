@@ -1,10 +1,9 @@
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
+from PySide2.QtCore import Qt
+from PySide2.QtWidgets import (QApplication, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
                              QLabel, QSizePolicy, QSlider, QSpacerItem, QPushButton, QScrollArea,
                              QVBoxLayout, QWidget, QStyleFactory, QGroupBox, QCheckBox)
 
-from PyQt5 import QtWidgets, QtCore, QtGui
-#from PyQt5.Qtgui import QImage
+from PySide2 import QtWidgets, QtCore, QtGui
 import numpy as np
 
 from pathlib import Path
@@ -24,7 +23,6 @@ import win32clipboard
 from PIL import Image
 
 import numpy as np
-# from fbs_runtime.application_context.PyQt5 import ApplicationContext
 from matplotlib.backends.qt_compat import QtCore, QtWidgets, is_pyqt5
 
 from matplotlib.backends.backend_qt5agg import (
@@ -35,13 +33,13 @@ import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
 
-
+qapp = QtWidgets.QApplication(sys.argv)
 
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
         matplotlib.use('Qt5Agg')
 
-        self.qapp = QtWidgets.QApplication(sys.argv)
+        self.qapp = qapp#QtWidgets.QApplication(sys.argv)
         
         super().__init__()
 
@@ -52,7 +50,6 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self._main)
         self.layout = QGridLayout(self._main)
 
-        
         marker_kw = {}
         for k in marker_default_params.keys():
             if k in kwargs.keys():
@@ -70,6 +67,9 @@ class PlotWindow(QtWidgets.QMainWindow):
         marker_kw['interactive'] = kwargs.pop('interactive', True)
         marker_kw['top_axes'] = kwargs.pop('top_axes', None)
         marker_kw['link_all'] = kwargs.pop('link_all', False)
+    
+
+        self.autoscale = kwargs.pop('autoscale', True)
 
 
         self.single_trace = kwargs.pop('single_trace', False)
@@ -200,7 +200,10 @@ class PlotWindow(QtWidgets.QMainWindow):
 
                     cb = CheckBox('')#QCheckBox('')
                     self.traces_cb[i].append((cb, l, label))
-                    l.ymin, l.ymax  = np.min(l.get_ydata()), np.max(l.get_ydata())
+
+                    y = l.get_ydata()
+                    y = np.where(np.isinf(y), np.nan, y)
+                    l.ymin, l.ymax  = np.nanmin(y), np.nanmax(y)
                     
                     cb.setChecked(True)
 
@@ -232,31 +235,25 @@ class PlotWindow(QtWidgets.QMainWindow):
             self.layout.setRowStretch(i+1, 1)
 
 
-        # self.menu_scroll = QScrollArea(widgetResizable=False)
-        # self.menu_scroll.setWidget(self.traces)
-
     def scale_ylim_visible(self, axes):
-        stime = time.time()
-        # for i, ax in enumerate(self.ax.flatten()):
+        if not self.autoscale:
+            return
+
         miny, maxy = np.inf, -np.inf
-        #for ax in axes.get_shared_x_axes().get_siblings(axes):
         for l in axes.lines:
             if not l.get_visible() or l.get_label() == '' or l.get_label()[0] == '_':
                 continue
-
+            
             miny = l.ymin if l.ymin < miny else miny
             maxy = l.ymax if l.ymax > maxy else maxy
 
-        if miny < np.inf and maxy > -np.inf:
+        if np.all(np.isfinite([miny, maxy])):
             pad = (maxy - miny)/20
             max_y = maxy + pad
             min_y = miny - pad
             axes.set_ylim([min_y, max_y])
 
-        print(time.time()-stime)
                 
-
-
     def state_changed(self, ax, l, cb, label):
 
         def calluser():
@@ -292,7 +289,6 @@ class PlotWindow(QtWidgets.QMainWindow):
     
     def set_tight_layout(self):
         self.fig.tight_layout()
-        #self.scale_ylim_visible()
         self.canvas.draw()
 
     def copy_figure(self):
@@ -317,22 +313,16 @@ class PlotWindow(QtWidgets.QMainWindow):
         
         self.update_traces_group(remove=False)
 
+        for ax in self.fig.axes:
+            self.scale_ylim_visible(ax)
+
         self.show()
-        
-        #self.qapp.exec_()
-        #self.qapp.show()
         
 class CheckBox(QCheckBox):
     def keyPressEvent(self, event):
         if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
             self.nextCheckState()
         super(CheckBox, self).keyPressEvent(event)
-
-# class CanvasManager(object):
-#     def __init__(self, show_func):
-#         self._show = show_func
-#     def show(self):
-#         return self._show()
 
 
 def interactive_subplots(nrows=1, ncols=1, **kwargs):
@@ -346,18 +336,3 @@ def interactive_subplots(nrows=1, ncols=1, **kwargs):
 
     return app.fig, ax
 
-if __name__ == "__main__":
-
-    fig, ax = interactive_subplots(1,1, constrained_layout=True)
-
-    t = np.linspace(0, 10, 101)
-    ax.plot(t, 10*np.sin(t), label='sin')
-    ax.plot(t, t*4, label='cos')
-    
-    fig, ax = interactive_subplots(2,1, link_all=True, show_xlabel=True)
-
-    ax[0].plot(t, np.sin(t), label='sin')
-    ax[1].plot(t, np.cos(t), label='cos')
-    ax[1].plot(t, 10*np.sin(t), label='cos')
-
-    plt.show()

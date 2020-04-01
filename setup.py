@@ -11,7 +11,7 @@ setup(
 		'matplotlib>=3.1.3',
         'numpy',
         'gorilla',
-        'pyqt5',
+        'pyside2',
         'Pillow',
         'pywin32'
     ),
