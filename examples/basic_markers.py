@@ -11,7 +11,6 @@ from matplotlib import ticker
 
 dir_ = Path(__file__).parent
 
-matplotlib.use('Qt4Agg') 
 
 fig, (ax1, ax2, ax3) = interactive_subplots(3, 1, figsize=(10,5), constrained_layout=True, dpi=100)
 ax1.grid(linewidth=0.5, linestyle='-')
