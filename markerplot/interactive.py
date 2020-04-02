@@ -33,13 +33,16 @@ import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
 
-qapp = QtWidgets.QApplication(sys.argv)
-
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
         matplotlib.use('Qt5Agg')
 
-        self.qapp = qapp#QtWidgets.QApplication(sys.argv)
+        #QtWidgets.QApplication(sys.argv)
+        qapp = QtWidgets.QApplication.instance()
+        if qapp is None:
+            qapp = QtWidgets.QApplication(sys.argv)
+
+        self.qapp = qapp
         
         super().__init__()
 
@@ -317,6 +320,8 @@ class PlotWindow(QtWidgets.QMainWindow):
             self.scale_ylim_visible(ax)
 
         self.show()
+        plt.close(self.fig)
+        #self.fig.close()
         
 class CheckBox(QCheckBox):
     def keyPressEvent(self, event):
