@@ -138,6 +138,7 @@ marker_default_params = dict(
         yformat= None,
         xformat= None,
         show_xlabel=False,
+        show_ylabel=True,
         xreversed=False, 
         alpha=0.7,
         wrap = False,

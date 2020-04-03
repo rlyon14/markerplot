@@ -25,6 +25,7 @@ class Marker(object):
         ## marker will inherit these parameters from axes, ignoring params from linked axes
         self.show_xline = axes.marker_params['show_xline']
         self.show_xlabel = axes.marker_params['show_xlabel'] if self.axes.name != 'polar' else False
+        self.show_ylabel = axes.marker_params['show_ylabel']
         self.xreversed = axes.marker_params['xreversed']
         self.wrap = axes.marker_params['wrap']
         self.xlabel_pad = axes.marker_params['xlabel_pad']
@@ -129,7 +130,11 @@ class Marker(object):
 
         for i, (ax,l) in enumerate(self.lines):
             vis = l.get_visible()
-            self.ytext[i].set_visible(vis)
+            if self.show_ylabel:
+                self.ytext[i].set_visible(vis) 
+            else:
+                self.ytext[i].set_visible(False) 
+
             self.ydot[i].set_visible(vis)
 
             # color = l.get_color()
@@ -217,6 +222,9 @@ class Marker(object):
     
             boxparams = dict(facecolor='black', edgecolor=l.get_color(), linewidth=1.6, boxstyle='round', alpha=ax.marker_params['alpha'])
             self.ytext[i] = ax.text(0, 0, '0' ,color='white', fontsize=8, transform=None, verticalalignment='center', bbox=boxparams)
+
+            if not self.show_ylabel:
+                self.ytext[i].set_visible(False)
 
             self.ydot[i] = Line2D([0], [0], linewidth=10, color=l.get_color(), markersize=10)
             self.ydot[i].set_marker('.')
@@ -399,7 +407,8 @@ class Marker(object):
         xloc = []
         yloc = []
         for i, (ax,l) in enumerate(self.lines):
-            self.ytext[i].set_visible(l.get_visible())
+            if self.show_ylabel:
+                self.ytext[i].set_visible(l.get_visible())
             self.ydot[i].set_visible(l.get_visible())
 
             if not self.index_mode:

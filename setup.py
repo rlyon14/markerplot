@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name='markerplot',
     description='interactive marker support for matplotlib',
-    author='rlyon',
+    author='rlyon14',
     author_email='rlyon14@yahoo.com',
     version='0.1.1',
     packages=['markerplot',],
