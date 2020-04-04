@@ -281,8 +281,9 @@ class PlotWindow(QtWidgets.QMainWindow):
             ax.legend(fontsize='small', loc=leg_loc)
         
             if self.draw_updates:
-                self.scale_ylim_visible(ax)
-                self.canvas.draw()
+                #self.scale_ylim_visible(ax)
+                ax._draw_lines_markers()
+                #self.canvas.draw()
         return calluser
 
     def remove_all(self):

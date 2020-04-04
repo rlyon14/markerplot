@@ -518,7 +518,7 @@ class Marker(object):
 
     def draw(self):
 
-        #self.axes.figure.canvas.restore_region(self.axes._draw_background)
+        #self.axes.figure.canvas.restore_region(self.axes._active_background)
 
         self.axes.draw_artist(self.xline)
         for i, (ax,l) in enumerate(self.lines):
@@ -617,34 +617,34 @@ class MarkerManager(object):
 
     def clear_saved_background(self):
         for ax in self.fig.axes:
-            ax._draw_background = None
+            ax._active_background = None
             for l_ax in ax.marker_linked_axes:
-                l_ax._draw_background = None
+                l_ax._active_background = None
 
     def draw_active_marker(self, axes):
-        draw_background_none = False
+        active_background_none = False
 
-        if axes._draw_background == None:
-            draw_background_none = True
+        if axes._active_background == None:
+            active_background_none = True
         
         else:
             for ax in axes.marker_linked_axes:
-                if ax._draw_background == None:
-                    draw_background_none = True
+                if ax._active_background == None:
+                    active_background_none = True
                     break
 
-        if draw_background_none:
+        if active_background_none:
             ## TODO: skip draw_active in draw_all
             self.draw_all(animated=True)
             return
 
-        axes.figure.canvas.restore_region(axes._draw_background)
+        axes.figure.canvas.restore_region(axes._active_background)
         if axes.marker_active != None:
             axes.marker_active.draw()
             axes.figure.canvas.blit(axes.bbox)
         
         for ax in axes.marker_linked_axes:
-            ax.figure.canvas.restore_region(ax._draw_background)
+            ax.figure.canvas.restore_region(ax._active_background)
             if ax.marker_active != None:
                 ax.marker_active.draw()
                 ax.figure.canvas.blit(ax.bbox)
@@ -766,40 +766,47 @@ class MarkerManager(object):
 
         ## if animated is False, everything will be drawn with canvas.draw() and any previously saved canvas bitmaps will be cleared.
 
-        self.set_all_animated(False)
-        if animated:
-            self.set_active_animated()
+        # self.set_all_animated(False)
+        # if animated:
+        #     self.set_active_animated()
 
         self.canvas_draw_disconnect()
-        self.fig.canvas.draw()
+        # self.fig.canvas.draw()
 
-        drawn = [self.fig]
+        # drawn = [self.fig]
+        # for ax in self.fig.axes:
+        #     for l_ax in ax.marker_linked_axes:
+        #         fig = l_ax.figure
+        #         if fig not in drawn:
+        #             fig._eventmanager.canvas_draw_disconnect()
+        #             #fig.canvas.draw()
+        #             #drawn.append(fig)
+
+        # if animated:
+        #     self.update_canvas()
+        #     for ax in self.fig.axes:
+        #         self.draw_active_marker(ax)
+        # else:
+        #     self.clear_saved_background()
+
+        #for fig in drawn:
+        #    self.fig._eventmanager.canvas_draw_connect()
+
         for ax in self.fig.axes:
-            for l_ax in ax.marker_linked_axes:
-                fig = l_ax.figure
-                if fig not in drawn:
-                    fig._eventmanager.canvas_draw_disconnect()
-                    fig.canvas.draw()
-                    drawn.append(fig)
+            ax._update_background()
 
-        if animated:
-            self.update_canvas()
-            for ax in self.fig.axes:
-                self.draw_active_marker(ax)
-        else:
-            self.clear_saved_background()
+        #self.set_active_animated()
+        self.fig._eventmanager.canvas_draw_connect()
 
-        for fig in drawn:
-            fig._eventmanager.canvas_draw_connect()
-
-        self.set_active_animated()
+        ## new
+        
 
     def update_canvas(self):
         for ax in self.fig.axes:
-            ax._draw_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
+            ax._active_background = ax.figure.canvas.copy_from_bbox(ax.bbox)
             for l_ax in ax.marker_linked_axes:
                 fig = l_ax.figure
-                l_ax._draw_background = fig.canvas.copy_from_bbox(l_ax.bbox)
+                l_ax._active_background = fig.canvas.copy_from_bbox(l_ax.bbox)
 
     def canvas_draw_disconnect(self):
         self.fig.canvas.mpl_disconnect(self.ciddraw)
