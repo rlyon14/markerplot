@@ -130,6 +130,16 @@ def clear(self, *args, **kwargs):
 
     return ret
 
+def draw_lines_markers(self):
+    for ax in self.fig.axes:
+        for l_ax in ax.marker_linked_axes:
+
+def update_background(self):
+    if ax.marker_active != None:
+        ax.marker_active.set_animated(True)
+    
+    self._draw_background = None
+
 ##############
 ############## 
 

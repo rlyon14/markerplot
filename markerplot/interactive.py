@@ -193,7 +193,17 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.draw_updates = False
         
         for i, ax in enumerate(self.ax.flatten()):
-            row = 0
+            row = 1
+            cb = QCheckBox('')
+            #qlabel = self.createCheckBoxLabel('All', size=14)
+            cb.setTristate(True)
+            layout = self.traces[i][1]
+            layout.addWidget(cb, 0, 0)
+            #layout.addWidget(qlabel, 0, 1, alignment=Qt.AlignLeft)
+            #cb.stateChanged.connect(self.state_changed(ax_shared, l, cb, label))
+            
+            
+
             for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
                 for l in ax_shared.lines:
 
@@ -216,7 +226,7 @@ class PlotWindow(QtWidgets.QMainWindow):
 
                     qlabel = self.createCheckBoxLabel(label, size=14)
                     
-                    layout = self.traces[i][1]
+                    
                     layout.addWidget(cb, row, 0)
                     layout.addWidget(qlabel, row, 1, alignment=Qt.AlignLeft)
                     

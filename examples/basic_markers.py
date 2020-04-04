@@ -21,8 +21,8 @@ fig.marker_enable(show_xline=True, show_xlabel=True, wrap=True, inherit_ticker=T
 
 x1 = np.linspace(-2*np.pi, 2*np.pi, 100)
 
-l1 = ax1.plot(x1, np.sin(x1))
-ax1.plot(x1, np.cos(x1))
+l1 = ax1.plot(x1, np.sin(x1), label='sin')
+ax1.plot(x1, 2*x1, label='cos')
 print(l1)
 ax2.plot(x1, np.sin(x1), label='sin')
 ax3.plot(x1, np.cos(x1), label='cos')
