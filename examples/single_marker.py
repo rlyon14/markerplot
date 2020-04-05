@@ -3,15 +3,15 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from fig2pptx import fig2pptx
+#from fig2pptx import fig2pptx
 
-import markerplot
+from markerplot import interactive_subplots
 
 dir_ = Path(__file__).parent
 
 matplotlib.use('Qt4Agg') 
 
-fig, ax1 = plt.subplots(1, 1, figsize=(10,5), constrained_layout=True)
+fig, ax1 = interactive_subplots(1, 1, figsize=(10,5), constrained_layout=True)
 #ax1.grid(linewidth=0.5, linestyle='-')
 #ax2.grid(linewidth=0.5, linestyle='-')
 
@@ -34,7 +34,7 @@ print(fig.dpi)
 
 #plt.tight_layout()
 # fig.savefig(dir_/ 'test.png', dpi=330)
-fig2pptx(dir_ / r'test.pptx', close_plots=False)
+#fig2pptx(dir_ / r'test.pptx', close_plots=False)
 ## place static markers
 
 

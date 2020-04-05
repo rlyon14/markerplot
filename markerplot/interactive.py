@@ -281,8 +281,8 @@ class PlotWindow(QtWidgets.QMainWindow):
             ax.legend(fontsize='small', loc=leg_loc)
         
             if self.draw_updates:
-                #self.scale_ylim_visible(ax)
-                ax._draw_lines_markers()
+                self.scale_ylim_visible(ax)
+                ax.draw_lines_markers()
                 #self.canvas.draw()
         return calluser
 
@@ -331,7 +331,9 @@ class PlotWindow(QtWidgets.QMainWindow):
             self.scale_ylim_visible(ax)
 
         self.show()
+        
         plt.close(self.fig)
+
         #self.fig.close()
         
 class CheckBox(QCheckBox):

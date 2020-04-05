@@ -130,56 +130,39 @@ def clear(self, *args, **kwargs):
 
     return ret
 
-def _draw_lines_markers(self):
+def draw_lines_markers(self, blit=True):
+
     self.figure.canvas.restore_region(self._all_background)
 
     for l in self.lines:
-        self.draw_artist(l)
+        if l not in self.marker_ignorelines:
+            self.draw_artist(l)
         
     for m in self.markers:
         m.update_marker()
-        m.draw()
-
-
-
-    self.figure.canvas.blit(self.bbox)
-
-def _update_background(self):
-    for m in self.markers:
-        m.set_animated(True)
-
-    for l in self.lines:
-        l.set_animated(True)
-
-    self.figure.canvas.draw()
-    self._all_background =  self.figure.canvas.copy_from_bbox(self.bbox)
-    
-    for m in self.markers:
         if m != self.marker_active:
+            #m.set_visible(True)
             m.draw()
+            #m.set_visible(False)
 
-    for l in self.lines:
-        self.draw_artist(l)
+    if blit:
+        self.figure.canvas.blit(self.bbox)
 
-    self.figure.canvas.blit(self.bbox)
+        self._active_background = self.figure.canvas.copy_from_bbox(self.bbox)
 
-    self._active_background =  self.figure.canvas.copy_from_bbox(self.bbox)
+        if self.marker_active != None:
+            #self.marker_active.set_visible(True)
+            self.marker_active.draw()
+            #self.marker_active.set_visible(False)
 
-    for m in self.markers:
-        m.set_animated(False)
+        self.figure.canvas.blit(self.bbox)
+    else:
+        if self.marker_active != None:
+            #self.marker_active.set_visible(True)
+            self.marker_active.draw()
+            #self.marker_active.set_visible(False)
+        self._active_background = None
 
-    for l in self.lines:
-        l.set_animated(False)
-
-    self.figure.canvas.restore_region(self._active_background)
-
-    if self.marker_active != None:
-        self.marker_active.draw()
-        self.marker_active.set_animated(True)
-
-    self.figure.canvas.blit(self.bbox)
-
-    
 
 ##############
 ############## 
@@ -202,6 +185,7 @@ marker_default_params = dict(
 ####################
 ## Figure Patches ##
 ####################
+
 def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marker_params):
     """ enable markers on all child axes of figure
 
@@ -282,10 +266,7 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
             patch = gorilla.Patch(ax.__class__, 'clear', clear, settings=settings)
             gorilla.apply(patch)
 
-            patch = gorilla.Patch(ax.__class__, '_update_background', _update_background)
-            gorilla.apply(patch)
-
-            patch = gorilla.Patch(ax.__class__, '_draw_lines_markers', _draw_lines_markers)
+            patch = gorilla.Patch(ax.__class__, 'draw_lines_markers', draw_lines_markers)
             gorilla.apply(patch)
 
 
@@ -301,4 +282,5 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
 ## add marker_enable() to Figure class
 patch = gorilla.Patch(matplotlib.figure.Figure, 'marker_enable', marker_enable)
 gorilla.apply(patch)
+
 
