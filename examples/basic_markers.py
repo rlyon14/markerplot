@@ -12,7 +12,7 @@ from matplotlib import ticker
 dir_ = Path(__file__).parent 
 
 
-fig, (ax1, ax2, ax3) = interactive_subplots(3, 1, figsize=(10,5), constrained_layout=True, dpi=100, show_xlabel=True, show_ylabel=True, link_all=True)
+fig, (ax1, ax2, ax3) = interactive_subplots(3, 1, figsize=(10,5), constrained_layout=True, dpi=100, show_xlabel=True, show_ylabel=True, link_all=False)
 ax1.grid(linewidth=0.5, linestyle='-')
 ax2.grid(linewidth=0.5, linestyle='-')
 ax3.grid(linewidth=0.5, linestyle='-')

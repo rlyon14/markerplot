@@ -189,21 +189,13 @@ class PlotWindow(QtWidgets.QMainWindow):
 
     def update_traces_group(self, remove=True):
 
-        self.traces_cb = [[]]*(self.nrows * self.ncols)
+        self.traces_cb = [[] for i in range(self.nrows * self.ncols)]
+
         self.draw_updates = False
         
         for i, ax in enumerate(self.ax.flatten()):
             row = 1
-            cb = QCheckBox('')
-            #qlabel = self.createCheckBoxLabel('All', size=14)
-            cb.setTristate(True)
             layout = self.traces[i][1]
-            layout.addWidget(cb, 0, 0)
-            #layout.addWidget(qlabel, 0, 1, alignment=Qt.AlignLeft)
-            #cb.stateChanged.connect(self.state_changed(ax_shared, l, cb, label))
-            
-            
-
             for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
                 for l in ax_shared.lines:
 
@@ -238,7 +230,19 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         added_traces = False
         for i, (tr, ly) in enumerate(self.traces):
+            #print(i, self.traces_cb[i])
             if len(self.traces_cb[i]) > 1:
+                cb = QCheckBox('')
+                #qlabel = self.createCheckBoxLabel('All', size=14)
+                cb.setTristate(False)
+                layout = self.traces[i][1]
+                layout.addWidget(cb, 0, 0)
+                #layout.addWidget(qlabel, 0, 1, alignment=Qt.AlignLeft)
+                ax = self.ax.flatten()[i]
+                cb.stateChanged.connect(self.state_changed(ax, None, cb, None))
+
+            if len(self.traces_cb[i]) > 0:
+                #print('add')
                 added_traces = True
                 self.layout.addWidget(tr, i, 1)
         
@@ -270,36 +274,56 @@ class PlotWindow(QtWidgets.QMainWindow):
     def state_changed(self, ax, l, cb, label):
 
         def calluser():
+            #leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
             state = cb.isChecked()
-            l.set_visible(state)
-            if state:
-                l.set_label(label)
-            else:
-                l.set_label('')
+            state = cb.checkState()
+            
+            if l == None:
+                idx = list(self.ax.flatten()).index(ax)
+                ax_cb = self.traces_cb[idx]
+                self.draw_updates = False
+                for i, (cbn, ln, labeln) in enumerate(ax_cb):
+                    
+                    cbn.setChecked(state)
 
-            leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
-            ax.legend(fontsize='small', loc=leg_loc)
-        
-            if self.draw_updates:
+                self.draw_updates = True
                 self.scale_ylim_visible(ax)
                 ax.draw_lines_markers()
-                #self.canvas.draw()
+                #ax.legend(fontsize='small', loc=leg_loc)
+
+            else:
+                l.set_visible(state)
+                if state:
+                    l.set_label(label)
+                else:
+                    l.set_label('')
+
+                if self.draw_updates:
+                    self.scale_ylim_visible(ax)
+                    ax.draw_lines_markers()
+
+                #ax.legend(fontsize='small', loc=leg_loc)
+        
+
         return calluser
 
     def remove_all(self):
         for ax in self.fig.axes:
             ax.marker_delete_all()
+            ax.draw_lines_markers()
             for l_ax in ax.marker_linked_axes:
                 l_ax.marker_delete_all()
+                l_ax.draw_lines_markers()
 
-        self.fig.canvas.draw()
-        drawn = [self.fig]
-        for ax in self.fig.axes:
-            for l_ax in ax.marker_linked_axes:
-                fig = l_ax.figure
-                if fig not in drawn:
-                    fig.canvas.draw()
-                    drawn.append(fig)
+        draw_lines_markers
+        # self.fig.canvas.draw()
+        # drawn = [self.fig]
+        # for ax in self.fig.axes:
+        #     for l_ax in ax.marker_linked_axes:
+        #         fig = l_ax.figure
+        #         if fig not in drawn:
+        #             fig.canvas.draw()
+        #             drawn.append(fig)
     
     def set_tight_layout(self):
         self.fig.tight_layout()

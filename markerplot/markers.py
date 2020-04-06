@@ -21,7 +21,6 @@ class Marker(object):
                 idx: (int) index of x-data (ignored if axes data lines have unequal xdata arrays)
         """
         self.axes = axes 
-        print('marker init')
         ## marker will inherit these parameters from axes, ignoring params from linked axes
         self.show_xline = axes.marker_params['show_xline']
         self.show_xlabel = axes.marker_params['show_xlabel'] if self.axes.name != 'polar' else False
@@ -130,20 +129,6 @@ class Marker(object):
         self.display2data = self.axes.transData.inverted().transform
 
         for i, (ax,l) in enumerate(self.lines):
-            vis = l.get_visible()
-            # if self.show_ylabel:
-            #     self.ytext[i].set_visible(vis) 
-            # else:
-            #     self.ytext[i].set_visible(False) 
-
-            # self.ydot[i].set_visible(vis)
-
-            # color = l.get_color()
-            # color = matplotlib.colors.to_hex(color, keep_alpha=True)
-            # boxparams = dict(facecolor='black', edgecolor=color, linewidth=1.6, boxstyle='round', alpha=ax.marker_params['alpha'])
-            # #print('color', color, color.__class__)
-            # self.ydot[i].set_color(color)
-
             l.xy = self.data2display(ax, l.get_xydata())
 
         self.base_origin = list(self.display2data((0,0)))
@@ -344,6 +329,7 @@ class Marker(object):
                 ylocs.append((dim.y1 + dim.y0)/2)
                 ylabels.append(ytext)
 
+        self.set_visible(False)
         if len(ylabels) < 1:
             return
 
@@ -380,14 +366,7 @@ class Marker(object):
 
             ## set position
             ytext.set_position((xloc, yloc))
-        self.set_visible(False)
-            # if xloc < xmin or xloc > xmax:
-            #     print('oob')
-            # # ytext.set_visible(False)
-            # if yloc < ymin or yloc > ymax:
-            #     print('oob')
-            # ytext.set_visible(False)
-
+        
 
     def move_to_point(self, xd=None, disp=None, idx=None):
         
@@ -547,12 +526,12 @@ class Marker(object):
                 return True
         return False
 
-    def set_animated(self, state):
-        self.xline.set_animated(state)
-        self.xtext.set_animated(state)
-        for i, (ax,l) in enumerate(self.lines):
-            self.ydot[i].set_animated(state)
-            self.ytext[i].set_animated(state)
+    # def set_animated(self, state):
+    #     self.xline.set_animated(state)
+    #     self.xtext.set_animated(state)
+    #     for i, (ax,l) in enumerate(self.lines):
+    #         self.ydot[i].set_animated(state)
+    #         self.ytext[i].set_animated(state)
 
     def set_hidden(self, idx):
         self._hidden_markers.append(idx)
@@ -652,13 +631,13 @@ class MarkerManager(object):
     #             for m in l_ax.markers:
     #                 m.set_animated(state)
 
-    def set_active_animated(self):
-        for ax in self.fig.axes:
-            if ax.marker_active != None:
-                ax.marker_active.set_animated(True)
-            for l_ax in ax.marker_linked_axes:
-                if l_ax.marker_active != None:
-                    l_ax.marker_active.set_animated(True)
+    # def set_active_animated(self):
+    #     for ax in self.fig.axes:
+    #         if ax.marker_active != None:
+    #             ax.marker_active.set_animated(True)
+    #         for l_ax in ax.marker_linked_axes:
+    #             if l_ax.marker_active != None:
+    #                 l_ax.marker_active.set_animated(True)
 
     # def clear_saved_background(self):
     #     for ax in self.fig.axes:
@@ -684,23 +663,14 @@ class MarkerManager(object):
 
         axes.figure.canvas.restore_region(axes._active_background)
         if axes.marker_active != None:
-            # axes.marker_active.set_visible(True)
             axes.marker_active.draw()
-            # axes.marker_active.set_visible(False)
             axes.figure.canvas.blit(axes.bbox)
         
         for ax in axes.marker_linked_axes:
             ax.figure.canvas.restore_region(ax._active_background)
             if ax.marker_active != None:
-                # axes.marker_active.set_visible(True)
                 ax.marker_active.draw()
-                # axes.marker_active.set_visible(False)
                 ax.figure.canvas.blit(ax.bbox)
-
-        # axes.figure.canvas.blit(axes.bbox)
-        # print('blit', id(axes))
-        # for ax in axes.marker_linked_axes:
-        #     ax.figure.canvas.blit(ax.bbox)
 
 
     def get_event_marker(self, axes, event):
@@ -812,12 +782,16 @@ class MarkerManager(object):
         """
         self.canvas_draw_disconnect()
 
+        vis = []
         for ax in self.fig.axes:
+            ## TODO: this shouldn't be necessary
             # for m in ax.markers:
             #     m.set_visible(False)
+                
             for l in ax.lines:
-                if l not in ax.marker_ignorelines:
+                if l not in ax.marker_ignorelines and l.get_visible():
                     l.set_visible(False)
+                    vis.append(l)
 
         self.fig.canvas.draw()
 
@@ -825,16 +799,8 @@ class MarkerManager(object):
             ax._all_background =  self.fig.canvas.copy_from_bbox(ax.bbox)
             ax._active_background = None
 
-            # for m in ax.markers:
-            #     m.set_animated(False)
-            #     #m.set_visible(True)
-            for l in ax.lines:
-                if l not in ax.marker_ignorelines:
-                    l.set_visible(True)
-                #l.set_animated(False)
-                #m.set_visible(False)
-            # if ax.marker_active != None:
-            #     ax.marker_active.set_animated(True)
+        for l in vis:
+            l.set_visible(True)
 
         self.canvas_draw_connect()
 
@@ -898,7 +864,6 @@ class MarkerManager(object):
         identical = False
         draw = 0
         while not identical:
-            print('event', draw)
             identical = self.update_all()
             self.draw_all(blit=False)
             
@@ -906,11 +871,9 @@ class MarkerManager(object):
             if draw > max_draw:
                 break
         
-        print('test0')
         self.update_all()
         for ax in self.fig.axes:
             ax.draw_lines_markers(blit=False)
-        print('test1')
 
 
 

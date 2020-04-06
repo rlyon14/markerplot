@@ -135,15 +135,13 @@ def draw_lines_markers(self, blit=True):
     self.figure.canvas.restore_region(self._all_background)
 
     for l in self.lines:
-        if l not in self.marker_ignorelines:
+        if l not in self.marker_ignorelines:# and l.get_visible:
             self.draw_artist(l)
         
     for m in self.markers:
         m.update_marker()
         if m != self.marker_active:
-            #m.set_visible(True)
             m.draw()
-            #m.set_visible(False)
 
     if blit:
         self.figure.canvas.blit(self.bbox)
@@ -151,16 +149,12 @@ def draw_lines_markers(self, blit=True):
         self._active_background = self.figure.canvas.copy_from_bbox(self.bbox)
 
         if self.marker_active != None:
-            #self.marker_active.set_visible(True)
             self.marker_active.draw()
-            #self.marker_active.set_visible(False)
 
         self.figure.canvas.blit(self.bbox)
     else:
         if self.marker_active != None:
-            #self.marker_active.set_visible(True)
             self.marker_active.draw()
-            #self.marker_active.set_visible(False)
         self._active_background = None
 
 
