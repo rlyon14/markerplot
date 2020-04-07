@@ -72,7 +72,10 @@ class PlotWindow(QtWidgets.QMainWindow):
         marker_kw['link_all'] = kwargs.pop('link_all', False)
     
 
-        self.autoscale = kwargs.pop('autoscale', True)
+        self.autoscale = kwargs.pop('autoscale', False)
+
+        # ## autoscale need some work
+        # self.autoscale = False
 
 
         self.single_trace = kwargs.pop('single_trace', False)
@@ -274,7 +277,7 @@ class PlotWindow(QtWidgets.QMainWindow):
     def state_changed(self, ax, l, cb, label):
 
         def calluser():
-            #leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
+            leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
             state = cb.isChecked()
             state = cb.checkState()
             
@@ -287,9 +290,7 @@ class PlotWindow(QtWidgets.QMainWindow):
                     cbn.setChecked(state)
 
                 self.draw_updates = True
-                self.scale_ylim_visible(ax)
-                ax.draw_lines_markers()
-                #ax.legend(fontsize='small', loc=leg_loc)
+
 
             else:
                 l.set_visible(state)
@@ -298,11 +299,14 @@ class PlotWindow(QtWidgets.QMainWindow):
                 else:
                     l.set_label('')
 
-                if self.draw_updates:
-                    self.scale_ylim_visible(ax)
-                    ax.draw_lines_markers()
 
-                #ax.legend(fontsize='small', loc=leg_loc)
+            if self.draw_updates:
+                if self.autoscale:
+                    self.scale_ylim_visible(ax)
+                    ax.legend(fontsize='small', loc=leg_loc)
+                    self.fig.canvas.draw()
+                else:
+                    ax.draw_lines_markers()
         
 
         return calluser
@@ -315,7 +319,7 @@ class PlotWindow(QtWidgets.QMainWindow):
                 l_ax.marker_delete_all()
                 l_ax.draw_lines_markers()
 
-        draw_lines_markers
+        # draw_lines_markers
         # self.fig.canvas.draw()
         # drawn = [self.fig]
         # for ax in self.fig.axes:
@@ -353,6 +357,7 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         for ax in self.fig.axes:
             self.scale_ylim_visible(ax)
+            #ax.relim(visible_only=True)
 
         self.show()
         

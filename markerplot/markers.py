@@ -23,6 +23,7 @@ class Marker(object):
         self.axes = axes 
         ## marker will inherit these parameters from axes, ignoring params from linked axes
         self.show_xline = axes.marker_params['show_xline']
+        self.show_yline = axes.marker_params['show_yline']
         self.show_xlabel = axes.marker_params['show_xlabel'] if self.axes.name != 'polar' else False
         self.show_ylabel = axes.marker_params['show_ylabel']
         self.xreversed = axes.marker_params['xreversed']
@@ -67,6 +68,7 @@ class Marker(object):
                         self.lines.append((ax,l))
         
         self.ydot = [None]*len(self.lines)
+        self.yline = [None]*len(self.lines)
         self.ytext = [None]*len(self.lines)
         self.xdpoint = None
         self.xidx = [0]*len(self.lines)
@@ -195,6 +197,7 @@ class Marker(object):
 
         ## vertical x line
         boxparams = dict(boxstyle='round', facecolor='black', edgecolor='black', alpha=0.7)
+
         self.xline = self.axes.axvline(self.xdpoint, linewidth=0.5, color='r')
         self.axes.marker_ignorelines.append(self.xline)
 
@@ -213,11 +216,15 @@ class Marker(object):
             #     self.ytext[i].set_visible(False)
 
             self.ydot[i] = Line2D([0], [0], linewidth=10, color=l.get_color(), markersize=10)
+            self.yline[i] = Line2D([0], [0], linewidth=0.5, color='r')
             self.ydot[i].set_marker('.')
             self.ydot[i].set_linestyle(':')
             ax.add_line(self.ydot[i])
+            ax.add_line(self.yline[i])
             self.axes.marker_ignorelines.append(self.ydot[i])
+            self.axes.marker_ignorelines.append(self.yline[i])
             ax.marker_ignorelines.append(self.ydot[i])
+            ax.marker_ignorelines.append(self.yline[i])
             
             self.line_xbounds[i] = np.min(l._marker_xdata), np.max(l._marker_xdata)
 
@@ -236,7 +243,7 @@ class Marker(object):
         if shift > 0:
             for i in range(idx+1, len(loc_array)):
                 ovl = loc_array[i, 0] - loc_array[i-1, 1]
-                if ovl < 0:
+                if ovl < 0: 
                     loc_array[i, :] += abs(ovl)
         else:
             for i in range(idx-1, -1, -1):
@@ -411,6 +418,8 @@ class Marker(object):
         xloc = []
         yloc = []
         for i, (ax,l) in enumerate(self.lines):
+            xlim = ax.get_xlim()
+            self.set_show(i)
             # if self.show_ylabel:
             #     self.ytext[i].set_visible(l.get_visible())
             # self.ydot[i].set_visible(l.get_visible())
@@ -419,9 +428,11 @@ class Marker(object):
                 ## turn off ylabel and dot if ypoint is out of bounds
                 if (self.xdpoint > self.line_xbounds[i][1]) or (self.xdpoint < self.line_xbounds[i][0]):
                     self.set_hidden(i)
-                    self.set_hidden(i)
+                    #self.set_hidden(i)
                     # self.ytext[i].set_visible(False)
                     # self.ydot[i].set_visible(False)
+
+                    #self.set_show(i)
 
             ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
@@ -429,13 +440,16 @@ class Marker(object):
 
             if (not np.isfinite(yd)):
                 self.set_hidden(i)
-                self.set_hidden(i)
+                #self.set_hidden(i)
                 # self.ytext[i].set_visible(False)
                 # self.ydot[i].set_visible(False)
-
             else:
-                self.ytext[i].set_position((xl+self.ylabel_xpad, yl))
+                
+                #self.set_show(i)
+                xpos = xl+self.ylabel_xpad if not self.show_yline else self.ylabel_xpad
+                self.ytext[i].set_position((xpos, yl))
                 self.ydot[i].set_data([xd], [yd])
+                self.yline[i].set_data(xlim, [yd, yd])
 
                 ## ylabel text
                 mxd = l._marker_xdata[self.xidx[i]]
@@ -503,6 +517,9 @@ class Marker(object):
             if self.ydot[i] in ax.lines:
                 idx = ax.lines.index(self.ydot[i])
                 ax.lines.pop(idx)
+                idx = ax.lines.index(self.yline[i])
+                ax.lines.pop(idx)
+
             # self.ytext[i].set_visible(False)
             # self.ydot[i].set_visible(False)
 
@@ -513,7 +530,8 @@ class Marker(object):
         for i, (ax,l) in enumerate(self.lines):	
             vis = l.get_visible() and i not in self._hidden_markers
             self.ytext[i].set_visible(self.show_ylabel and state and vis)
-            self.ydot[i].set_visible(state and vis)
+            self.ydot[i].set_visible(self.show_ylabel and state and vis)
+            self.yline[i].set_visible(self.show_yline and state and vis)
 
     def contains_event(self, event):
         contains, attrd = self.xtext.contains(event)
@@ -534,7 +552,12 @@ class Marker(object):
     #         self.ytext[i].set_animated(state)
 
     def set_hidden(self, idx):
-        self._hidden_markers.append(idx)
+        if idx not in self._hidden_markers:
+            self._hidden_markers.append(idx)
+
+    def set_show(self, idx):
+        if idx in self._hidden_markers:
+            self._hidden_markers.remove(idx)
 
     def draw(self):
 
@@ -544,8 +567,10 @@ class Marker(object):
 
         self.axes.draw_artist(self.xline)
         for i, (ax,l) in enumerate(self.lines):
+            self.yline[i].axes.draw_artist(self.yline[i])
             self.ydot[i].axes.draw_artist(self.ydot[i])
             self.ytext[i].axes.draw_artist(self.ytext[i])
+            
         self.axes.draw_artist(self.xtext)
 
         self.set_visible(False)
@@ -675,7 +700,10 @@ class MarkerManager(object):
 
     def get_event_marker(self, axes, event):
         for m in axes.markers:
-            if m.contains_event(event):
+            m.set_visible(True)
+            contains = m.contains_event(event)
+            m.set_visible(False)
+            if contains:
                 return m
         return None
 
@@ -748,7 +776,7 @@ class MarkerManager(object):
         m = self.get_event_marker(axes, event)
         if (m != None and axes.marker_active != m): 
             self.make_linked_active(axes, m)
-            #self.draw_lm()
+            self.draw_lm()
 
     def onrelease(self, event):
         x = event.x
@@ -796,6 +824,7 @@ class MarkerManager(object):
         self.fig.canvas.draw()
 
         for ax in self.fig.axes:
+
             ax._all_background =  self.fig.canvas.copy_from_bbox(ax.bbox)
             ax._active_background = None
 

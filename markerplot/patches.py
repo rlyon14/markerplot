@@ -134,17 +134,24 @@ def draw_lines_markers(self, blit=True):
 
     self.figure.canvas.restore_region(self._all_background)
 
-    for l in self.lines:
-        if l not in self.marker_ignorelines:# and l.get_visible:
-            self.draw_artist(l)
+    for ax in self.axes.get_shared_x_axes().get_siblings(self):
+        for l in ax.lines:
+            if l not in self.marker_ignorelines:# and l.get_visible:
+                self.draw_artist(l)
         
-    for m in self.markers:
-        m.update_marker()
-        if m != self.marker_active:
-            m.draw()
+        for m in ax.markers:
+            m.update_marker()
+            if m != self.marker_active:
+                m.draw()
 
     if blit:
-        self.figure.canvas.blit(self.bbox)
+        #self.figure.canvas.blit(self.bbox)
+
+        #self.figure.c
+        #self.figure.draw_artist(self.yaxis)
+        # self.yaxis.remove()
+        self.figure.canvas.blit(self.figure.bbox)
+        #print(self.xaxis)
 
         self._active_background = self.figure.canvas.copy_from_bbox(self.bbox)
 
@@ -163,6 +170,7 @@ def draw_lines_markers(self, blit=True):
 
 marker_default_params = dict(
         show_xline=True,
+        show_yline = False,
         yformat= None,
         xformat= None,
         show_xlabel=False,
@@ -265,6 +273,7 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
 
 
     ## link all axes together in figure
+    ## TODO: make this work with shared axes, shared axes should not be linked together
     if link_all: 
         for ax in self.axes:
             ax.marker_link(*self.axes)
