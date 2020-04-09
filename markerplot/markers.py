@@ -115,6 +115,18 @@ class Marker(object):
 
         self.create(xd, idx=idx, disp=disp)
 
+    def update_params(self):
+        self.show_xline = axes.marker_params['show_xline']
+        self.show_yline = axes.marker_params['show_yline']
+        self.show_xlabel = axes.marker_params['show_xlabel'] if self.axes.name != 'polar' else False
+        self.show_ylabel = axes.marker_params['show_ylabel']
+        self.xreversed = axes.marker_params['xreversed']
+        self.wrap = axes.marker_params['wrap']
+        self.xlabel_pad = axes.marker_params['xlabel_pad']
+        self.ylabel_xpad = axes.marker_params['ylabel_xpad']
+        self.ylabel_ypad = axes.marker_params['ylabel_ypad']
+        self.update_marker(move=True)
+
     def update_marker(self, move=True):
         """ updates marker (without drawing on canvas) if the dpi or figure size changes
         """
@@ -211,9 +223,6 @@ class Marker(object):
     
             boxparams = dict(facecolor='black', edgecolor=l.get_color(), linewidth=1.6, boxstyle='round', alpha=ax.marker_params['alpha'])
             self.ytext[i] = ax.text(0, 0, '0' ,color='white', fontsize=8, transform=None, verticalalignment='center', bbox=boxparams)
-
-            # if not self.show_ylabel:
-            #     self.ytext[i].set_visible(False)
 
             self.ydot[i] = Line2D([0], [0], linewidth=10, color=l.get_color(), markersize=10)
             self.yline[i] = Line2D([0], [0], linewidth=0.5, color='r')
@@ -623,7 +632,6 @@ class MarkerManager(object):
             ax.marker_add(xd=axes.marker_active.xdpoint)
 
         self.make_linked_active(axes, marker)
-        self.draw_lm()
 
     def shift_linked(self, axes, direction):
         axes.marker_active.shift(direction)
@@ -644,9 +652,11 @@ class MarkerManager(object):
             idx = axes.markers.index(axes.marker_active)
             for ax in axes.marker_linked_axes:
                 ax.marker_active = ax.markers[idx]
+                #ax._active_background = None
         else:
             for ax in axes.marker_linked_axes:
                 ax.marker_active = None
+                #ax._active_background = None
 
     # def set_all_animated(self, state):
     #     for ax in self.fig.axes:
@@ -683,7 +693,8 @@ class MarkerManager(object):
                     break
 
         if active_background_none:
-            self.draw_lm()
+            print('tt')
+            self.draw_lm(axes)
             return
 
         axes.figure.canvas.restore_region(axes._active_background)
@@ -749,7 +760,7 @@ class MarkerManager(object):
             self.draw_active_marker(axes)
         elif(event.key == 'delete'):
             self.delete_linked(axes)
-            self.draw_lm()
+            self.draw_lm(axes)
         elif(event.key == 'f5'):
             self.update_all()
             self.draw_all()
@@ -776,7 +787,7 @@ class MarkerManager(object):
         m = self.get_event_marker(axes, event)
         if (m != None and axes.marker_active != m): 
             self.make_linked_active(axes, m)
-            self.draw_lm()
+            self.draw_lm(axes)
 
     def onrelease(self, event):
         x = event.x
@@ -793,10 +804,10 @@ class MarkerManager(object):
 
         if (m == None and (active_marker == None or self.shift_is_held == True)):
             self.add_linked(axes, x, y)
-            self.draw_lm()
+            self.draw_lm(axes)
         elif (m != None): 
             self.make_linked_active(axes, m)
-            self.draw_lm()
+            self.draw_lm(axes)
         elif (active_marker != None):
             self.move_linked(axes, x, y)
             self.draw_active_marker(axes)
@@ -854,8 +865,11 @@ class MarkerManager(object):
             #     if ax.marker_active != None:
             #         ax.marker_active.set_animated(True)
                     
-    def draw_lm(self):
-        for ax in self.fig.axes:
+    def draw_lm(self, axes):
+        #for ax in axes.get_shared_x_axes().get_siblings(axes):
+        axes.draw_lines_markers()
+        for ax in axes.marker_linked_axes:
+            #for ax_s in axes.get_shared_x_axes().get_siblings(axes):
             ax.draw_lines_markers()
 
     def canvas_draw_disconnect(self):

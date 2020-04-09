@@ -28,6 +28,7 @@ ax2.plot(x1, np.sin(x1), label='sin')
 ax3.plot(x1, np.cos(x1), label='cos')
 
 ax1.marker_add(xd=1.5)
+ax1.marker_add(xd=-1.5)
 ax2.marker_add(xd=2)
 ax3.marker_add(xd=2)
 
