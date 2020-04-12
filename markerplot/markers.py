@@ -798,7 +798,7 @@ class MarkerManager(object):
         
         self.update_all()
         for ax in self.fig._top_axes:
-            ax.draw_lines_markers(blit=True)
+            ax.draw_lines_markers(blit=False)
 
 
 
