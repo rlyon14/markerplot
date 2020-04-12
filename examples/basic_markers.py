@@ -24,7 +24,7 @@ x1 = np.linspace(-2*np.pi, 2*np.pi, 100)
 l1 = ax1.plot(x1, np.sin(x1), label='sin')
 ax1.plot(x1, 2*x1, label='cos')
 
-ax2.plot(x1, np.sin(x1), label='sin')
+ax2.plot(x1, np.sin(x1), label='sin', linewidth=1)
 ax3.plot(x1, np.cos(x1), label='cos')
 
 ax1.marker_add(xd=1.5)

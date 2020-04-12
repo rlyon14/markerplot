@@ -74,9 +74,6 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         self.autoscale = kwargs.pop('autoscale', False)
 
-        # ## autoscale need some work
-        # self.autoscale = False
-
 
         self.single_trace = kwargs.pop('single_trace', False)
     
@@ -232,17 +229,19 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.draw_updates = True
 
         added_traces = False
+        self.cb_all = {}
         for i, (tr, ly) in enumerate(self.traces):
             #print(i, self.traces_cb[i])
             if len(self.traces_cb[i]) > 1:
                 cb = QCheckBox('')
                 #qlabel = self.createCheckBoxLabel('All', size=14)
-                cb.setTristate(False)
+                #cb.setTristate(False)
                 layout = self.traces[i][1]
                 layout.addWidget(cb, 0, 0)
                 #layout.addWidget(qlabel, 0, 1, alignment=Qt.AlignLeft)
                 ax = self.ax.flatten()[i]
                 cb.stateChanged.connect(self.state_changed(ax, None, cb, None))
+                self.cb_all[id(ax._top_axes)] = cb
 
             if len(self.traces_cb[i]) > 0:
                 #print('add')
@@ -273,6 +272,21 @@ class PlotWindow(QtWidgets.QMainWindow):
             min_y = miny - pad
             axes.set_ylim([min_y, max_y])
 
+    def update_all_cb(self, ax):
+        idx = list(self.ax.flatten()).index(ax._top_axes)
+        ax_cb = self.traces_cb[idx]
+        checks = np.zeros(len(ax_cb))
+        for i, cb in enumerate(ax_cb):
+            checks[i] = int(cb[0].isChecked())
+
+        self.draw_updates = False
+        if np.all(checks):
+            self.cb_all[id(ax._top_axes)].setCheckState(Qt.CheckState.Checked)
+        elif np.any(checks):
+            self.cb_all[id(ax._top_axes)].setCheckState(Qt.CheckState.PartiallyChecked)
+        else:
+            self.cb_all[id(ax._top_axes)].setCheckState(Qt.CheckState.Unchecked)
+        self.draw_updates = True
                 
     def state_changed(self, ax, l, cb, label):
 
@@ -284,15 +298,21 @@ class PlotWindow(QtWidgets.QMainWindow):
             if l == None:
                 idx = list(self.ax.flatten()).index(ax)
                 ax_cb = self.traces_cb[idx]
-                self.draw_updates = False
-                for i, (cbn, ln, labeln) in enumerate(ax_cb):
+                if self.draw_updates:
+                    self.draw_updates = False
+                    if state == Qt.CheckState.PartiallyChecked:
+                        cb.setCheckState(Qt.CheckState.Checked)
                     
-                    cbn.setChecked(state)
+                    for i, (cbn, ln, labeln) in enumerate(ax_cb):
+                        
+                        cbn.setChecked(state)
 
-                self.draw_updates = True
+                    self.draw_updates = True
 
 
             else:
+                if self.draw_updates:
+                    self.update_all_cb(ax)
                 l.set_visible(state)
                 if state:
                     l.set_label(label)
@@ -306,13 +326,13 @@ class PlotWindow(QtWidgets.QMainWindow):
                     ax.legend(fontsize='small', loc=leg_loc)
                     self.fig.canvas.draw()
                 else:
-                    ax.draw_lines_markers()
+                    ax._top_axes.draw_lines_markers()
         
 
         return calluser
 
     def remove_all(self):
-        for ax in self.fig.axes:
+        for ax in self.fig._top_axes:
             ax.marker_delete_all()
             ax.draw_lines_markers()
             for l_ax in ax.marker_linked_axes:

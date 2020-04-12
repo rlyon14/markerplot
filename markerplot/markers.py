@@ -54,15 +54,8 @@ class Marker(object):
                 self.lines.append((l.axes, l))
 
         else:
-            ## get all lines from axes
-            for l in self.axes.lines:
-                if (l not in self.axes.marker_ignorelines):
-                    self.lines.append((self.axes, l))
-
             ## get lines from any shared axes
             for ax in self.axes.get_shared_x_axes().get_siblings(self.axes):
-                if ax == self.axes:
-                    continue
                 for l in ax.lines:
                     if (l not in ax.marker_ignorelines) and (l not in self.axes.marker_ignorelines):
                         self.lines.append((ax,l))
@@ -241,12 +234,6 @@ class Marker(object):
         self.move_to_point(xd, disp=disp, idx=idx)
         self.set_visible(False)
 
-        ## set visibility
-        # if not self.show_xlabel:
-        #     self.xtext.set_visible(False)
-        # if not self.show_xline:
-        #     self.xline.set_visible(False)
-
     def compute_shift_label(self, loc_array, idx, shift):
         loc_array[idx, :] += shift
         if shift > 0:
@@ -413,35 +400,18 @@ class Marker(object):
         txt = self.axes._marker_xformat(self.xdpoint)
         self.xtext.set_text(txt)
 
-        ## xlabel placement
-        # xtext_dim = self.xtext.get_window_extent(self.renderer)
-        # x0, y0 = self.axes2display((0,0))
-
-        # x1, y1 = xtext_dim.x0, xtext_dim.y0
-        # x2, y2 = xtext_dim.x1, xtext_dim.y1
-        # xlen = x2-x1
-
-        # xlabel_ypos = y0 + (y2-y1)/2 + self.xlabel_pad
-        # self.xtext.set_position((xl-xlen/2, xlabel_ypos))
 
         xloc = []
         yloc = []
         for i, (ax,l) in enumerate(self.lines):
             xlim = ax.get_xlim()
             self.set_show(i)
-            # if self.show_ylabel:
-            #     self.ytext[i].set_visible(l.get_visible())
-            # self.ydot[i].set_visible(l.get_visible())
+
 
             if not self.index_mode:
                 ## turn off ylabel and dot if ypoint is out of bounds
                 if (self.xdpoint > self.line_xbounds[i][1]) or (self.xdpoint < self.line_xbounds[i][0]):
                     self.set_hidden(i)
-                    #self.set_hidden(i)
-                    # self.ytext[i].set_visible(False)
-                    # self.ydot[i].set_visible(False)
-
-                    #self.set_show(i)
 
             ## ylabel and dot position
             xd, yd = l.get_xdata()[self.xidx[i]], l.get_ydata()[self.xidx[i]]
@@ -449,12 +419,7 @@ class Marker(object):
 
             if (not np.isfinite(yd)):
                 self.set_hidden(i)
-                #self.set_hidden(i)
-                # self.ytext[i].set_visible(False)
-                # self.ydot[i].set_visible(False)
             else:
-                
-                #self.set_show(i)
                 xpos = xl+self.ylabel_xpad if not self.show_yline else self.ylabel_xpad
                 self.ytext[i].set_position((xpos, yl))
                 self.ydot[i].set_data([xd], [yd])
@@ -516,8 +481,6 @@ class Marker(object):
                 self.move_to_point(new_xpoint)
 
     def remove(self):
-        # self.xtext.set_visible(False)
-        # self.xline.set_visible(False)
         if self.xline in self.axes.lines:
             idx = self.axes.lines.index(self.xline)
             self.axes.lines.pop(idx)
@@ -528,9 +491,6 @@ class Marker(object):
                 ax.lines.pop(idx)
                 idx = ax.lines.index(self.yline[i])
                 ax.lines.pop(idx)
-
-            # self.ytext[i].set_visible(False)
-            # self.ydot[i].set_visible(False)
 
     def set_visible(self, state):
         self.xtext.set_visible(self.show_xlabel and state)
@@ -552,13 +512,6 @@ class Marker(object):
             if (contains):
                 return True
         return False
-
-    # def set_animated(self, state):
-    #     self.xline.set_animated(state)
-    #     self.xtext.set_animated(state)
-    #     for i, (ax,l) in enumerate(self.lines):
-    #         self.ydot[i].set_animated(state)
-    #         self.ytext[i].set_animated(state)
 
     def set_hidden(self, idx):
         if idx not in self._hidden_markers:
@@ -591,16 +544,6 @@ class MarkerManager(object):
         self.fig = fig
         self.toolbar = self.fig.canvas.toolbar
 
-        if top_axes == None:
-            self.top_axes = []
-        elif not isinstance(top_axes, (tuple, list, np.ndarray)):
-            self.top_axes = [top_axes]
-        else:
-            self.top_axes = top_axes
-
-        for ax in self.top_axes:
-            self.axes_to_top(ax)
-
         self.move = None
         self.shift_is_held = False 
 
@@ -612,14 +555,6 @@ class MarkerManager(object):
         self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.cidbtnrelease = self.fig.canvas.mpl_connect('button_release_event', self.onrelease)
         self.ciddraw = self.fig.canvas.mpl_connect('draw_event', self.on_draw)
-
-    def axes_to_top(self, axes):
-        max_zorder = 0
-        for ax in axes.get_shared_x_axes().get_siblings(axes):
-            if ax.get_zorder() > max_zorder:
-                max_zorder = ax.get_zorder()
-        axes.set_zorder(max_zorder+1)
-        axes.patch.set_visible(False)
         
     def move_linked(self, axes, x, y):
         axes.marker_active.move_to_point(disp=(x,y))
@@ -658,28 +593,6 @@ class MarkerManager(object):
                 ax.marker_active = None
                 #ax._active_background = None
 
-    # def set_all_animated(self, state):
-    #     for ax in self.fig.axes:
-    #         for m in ax.markers:
-    #             m.set_animated(state)
-    #         for l_ax in ax.marker_linked_axes:
-    #             for m in l_ax.markers:
-    #                 m.set_animated(state)
-
-    # def set_active_animated(self):
-    #     for ax in self.fig.axes:
-    #         if ax.marker_active != None:
-    #             ax.marker_active.set_animated(True)
-    #         for l_ax in ax.marker_linked_axes:
-    #             if l_ax.marker_active != None:
-    #                 l_ax.marker_active.set_animated(True)
-
-    # def clear_saved_background(self):
-    #     for ax in self.fig.axes:
-    #         ax._active_background = None
-    #         for l_ax in ax.marker_linked_axes:
-    #             l_ax._active_background = None
-
     def draw_active_marker(self, axes):
         active_background_none = False
 
@@ -693,7 +606,6 @@ class MarkerManager(object):
                     break
 
         if active_background_none:
-            print('tt')
             self.draw_lm(axes)
             return
 
@@ -725,10 +637,7 @@ class MarkerManager(object):
 
         axes = event.inaxes
         if axes in self.fig.axes:
-            for ax in axes.get_shared_x_axes().get_siblings(axes):
-                if (ax in self.top_axes):
-                    return ax
-            return axes
+            return axes._top_axes
         else:
             return None
 
@@ -849,21 +758,8 @@ class MarkerManager(object):
         self.update_background()
 
         if blit:
-            for ax in self.fig.axes:
+            for ax in self.fig._top_axes:
                 ax.draw_lines_markers()
-
-        # else:
-        #     for ax in self.fig.axes:
-        #         ax.marker_active.set_animated(False)
-       # else:
-            # self.canvas_draw_disconnect()
-            # self.fig.canvas.draw()
-            # self.canvas_draw_connect()
-
-            #for ax in self.fig.axes:
-            #    ax._active_background = None
-            #     if ax.marker_active != None:
-            #         ax.marker_active.set_animated(True)
                     
     def draw_lm(self, axes):
         #for ax in axes.get_shared_x_axes().get_siblings(axes):
@@ -882,12 +778,12 @@ class MarkerManager(object):
         error_threshold = 1
         old_origins = np.zeros(shape=(1,2))
         
-        for ax in self.fig.axes:
+        for ax in self.fig._top_axes:
             for m in ax.markers:
                 old_origins = np.append(old_origins, [m.base_origin], axis=0)
 
         new_origins = np.zeros(shape=(1,2))
-        for ax in self.fig.axes:
+        for ax in self.fig._top_axes:
             for m in ax.markers:
                 new_origins = np.append(new_origins, [m.update_marker()], axis=0)
             for l_ax in ax.marker_linked_axes:
@@ -896,7 +792,6 @@ class MarkerManager(object):
 
         diff = np.max(np.abs(old_origins - new_origins))
         return diff < error_threshold
-
 
     def on_draw(self, event):
         ## if constrained_layout or automatic tight_layout is on, the axes may automatically move/resize 
@@ -915,8 +810,8 @@ class MarkerManager(object):
                 break
         
         self.update_all()
-        for ax in self.fig.axes:
-            ax.draw_lines_markers(blit=False)
+        for ax in self.fig._top_axes:
+            ax.draw_lines_markers(blit=True)
 
 
 

@@ -110,8 +110,11 @@ def _marker_xformat(self, xd):
 def plot(self, *args, **kwargs):
     mxd = kwargs.pop('marker_xd', None)
 
+    ## change default linewidth to 1
+    lw = kwargs.pop('linewidth', 1)
+
     original = gorilla.get_original_attribute(self, 'plot')
-    lines = original(*args, **kwargs)
+    lines = original(*args, linewidth=lw, **kwargs)
 
     if np.any(mxd):
         for l in lines:
@@ -136,13 +139,16 @@ def draw_lines_markers(self, blit=True):
 
     for ax in self.axes.get_shared_x_axes().get_siblings(self):
         for l in ax.lines:
-            if l not in self.marker_ignorelines:# and l.get_visible:
-                self.draw_artist(l)
-        
-        for m in ax.markers:
-            m.update_marker()
-            if m != self.marker_active:
-                m.draw()
+            if l not in ax.marker_ignorelines:# and l.get_visible():
+                ax.draw_artist(l)
+    # for (ax, l) in lines:
+    #     ## if the line is not visible, draw artist will not draw it
+    #     ax.draw_artist(l)
+    
+    for m in self.markers:
+        m.update_marker()
+        if m != self.marker_active:
+            m.draw()
 
     if blit:
         #self.figure.canvas.blit(self.bbox)
@@ -150,9 +156,8 @@ def draw_lines_markers(self, blit=True):
         #self.figure.c
         #self.figure.draw_artist(self.yaxis)
         # self.yaxis.remove()
-        self.figure.canvas.blit(self.figure.bbox)
+        self.figure.canvas.blit(self.bbox)
         #print(self.xaxis)
-
         self._active_background = self.figure.canvas.copy_from_bbox(self.bbox)
 
         if self.marker_active != None:
@@ -188,7 +193,7 @@ marker_default_params = dict(
 ## Figure Patches ##
 ####################
 
-def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marker_params):
+def marker_enable(self, interactive=True, link_all=False, **marker_params):
     """ enable markers on all child axes of figure
 
         Parameters
@@ -222,7 +227,7 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
     if interactive:
         ## this will overwrite the reference to a previously defined event manager.
         ## as long as the user didn't store the old reference, the previous event bindings will be disconnected
-        self._eventmanager = MarkerManager(self, top_axes=top_axes)
+        self._eventmanager = MarkerManager(self)
 
     default_inst = dict(**marker_default_params)
     default_inst.update(dict(**marker_params))
@@ -235,6 +240,7 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
         ax.marker_linked_axes = []
         ax._active_background = None
         ax._all_background = None
+        ax._top_axes = ax
         
         if not hasattr(ax.__class__, 'marker_add'):
             patch = gorilla.Patch(ax.__class__, 'marker_add', marker_add)
@@ -271,12 +277,35 @@ def marker_enable(self, interactive=True, top_axes=None, link_all=False, **marke
             patch = gorilla.Patch(ax.__class__, 'draw_lines_markers', draw_lines_markers)
             gorilla.apply(patch)
 
+    self._top_axes = []
+    sub_axes = []
+    for ax in self.axes:
+        if ax not in sub_axes:
+            self._top_axes.append(ax)
+        else:
+            continue
+        ## loop through list of shared axes, included this axes
+        for ax_s in ax.get_shared_x_axes().get_siblings(ax):
+            
+            if ax_s != ax:
+                sub_axes.append(ax_s)
+                ax_s._top_axes = ax
+    
+    for ax in self.axes:
+        if ax._top_axes != ax:
+            continue
 
-    ## link all axes together in figure
-    ## TODO: make this work with shared axes, shared axes should not be linked together
+        zorder = []
+        for ax_s in ax.get_shared_x_axes().get_siblings(ax):
+            if ax_s != ax:
+                ax_s.patch.set_visible(False)
+            zorder.append(ax_s.get_zorder())
+        if len(zorder) > 1:
+            ax.set_zorder(np.max(zorder)+1)
+
     if link_all: 
-        for ax in self.axes:
-            ax.marker_link(*self.axes)
+        for ax in self._top_axes:
+            ax.marker_link(*self._top_axes)
 
 ##############
 ##############
