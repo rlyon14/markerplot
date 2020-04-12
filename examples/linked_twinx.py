@@ -9,7 +9,7 @@ from markerplot import interactive_subplots
 
 dir_ = Path(__file__).parent
 
-fig, (ax1, ax2) = interactive_subplots(2, 1, constrained_layout=True, figsize=(10,5))
+fig, (ax1, ax2) = interactive_subplots(2, 1, constrained_layout=True,  dpi=100, figsize=(10,5))
 ax1.grid(linewidth=0.5, linestyle='-')
 ax2.grid(linewidth=0.5, linestyle='-')
 par1 = ax1.twinx()
@@ -29,5 +29,9 @@ par1.plot(x1, np.cos(x1), label='cos(x)')
 ax2.plot(x1, np.sin(x1), label='sin(x)')
 par2.plot(x1, np.cos(x1), label='cos(x)')
 
+ax1.marker_add(xd=1.5)
+ax2.marker_add(xd=1.5)
+
+fig.savefig(dir_/ 'test.png', dpi=330)
 
 plt.show()

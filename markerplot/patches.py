@@ -26,18 +26,19 @@ def marker_add(self, xd=None, idx=None, disp=None, lines=None):
             lines: (list, tuple, np.ndarray) lines to place markers on
                     if lines is not provided, markers will be placed on all lines on the axes
     """
+    ax = self._top_axes
     if isinstance(xd, (list, tuple, np.ndarray)):
         for x in xd:
-            self.markers.append(Marker(self.axes, xd=x, lines=lines))
+            ax.markers.append(Marker(ax, xd=x, lines=lines))
     
     elif isinstance(idx, (list, tuple, np.ndarray)):
         for i in idx:
-            self.markers.append(Marker(self.axes, idx=i, lines=lines))
+            ax.markers.append(Marker(ax, idx=i, lines=lines))
     else:
-        self.markers.append(Marker(self.axes, xd=xd, idx=idx, disp=disp, lines=lines))
+        ax.markers.append(Marker(ax, xd=xd, idx=idx, disp=disp, lines=lines))
 
-    self.marker_active = self.markers[-1]
-    return self.marker_active
+    ax.marker_active = self.markers[-1]
+    return ax.marker_active
 
 def marker_delete(self, marker):
     """ remove marker from axes
@@ -81,10 +82,10 @@ def marker_link(self, *axes):
     """
     axes = list(axes)
     for ax in axes:
-        if ax in self.marker_linked_axes or ax == self:
+        if ax._top_axes in self._top_axes.marker_linked_axes or ax._top_axes == self:
             continue
-        self.marker_linked_axes.append(ax)
-        ax.marker_linked_axes.append(self)
+        self._top_axes.marker_linked_axes.append(ax._top_axes)
+        ax._top_axes.marker_linked_axes.append(self._top_axes)
 
 def _marker_yformat(self, xd, yd, mxd=None):
     yformatter = self.yaxis.get_major_formatter()
