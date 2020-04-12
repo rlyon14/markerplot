@@ -11,10 +11,11 @@ import sys
 
 from time import time
 import matplotlib.pyplot as plt
-import markerplot
-from markerplot import marker_default_params
 import matplotlib
 import io
+
+import markerplot
+from markerplot import marker_default_params
 
 import sys
 import time
@@ -23,10 +24,9 @@ import win32clipboard
 from PIL import Image
 
 import numpy as np
-from matplotlib.backends.qt_compat import QtCore, QtWidgets, is_pyqt5
+from matplotlib.backends.qt_compat import is_pyqt5
 
-from matplotlib.backends.backend_qt5agg import (
-    FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
+from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -233,7 +233,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         for i, (tr, ly) in enumerate(self.traces):
             #print(i, self.traces_cb[i])
             if len(self.traces_cb[i]) > 1:
-                cb = QCheckBox('')
+                cb = CheckBox('')
 
                 layout = self.traces[i][1]
                 layout.addWidget(cb, 0, 0)
