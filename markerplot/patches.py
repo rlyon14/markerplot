@@ -37,25 +37,27 @@ def marker_add(self, xd=None, idx=None, disp=None, lines=None):
     else:
         ax.markers.append(Marker(ax, xd=xd, idx=idx, disp=disp, lines=lines))
 
-    ax.marker_active = self.markers[-1]
+    ax.marker_active = ax.markers[-1]
     return ax.marker_active
 
 def marker_delete(self, marker):
     """ remove marker from axes
     """
-    idx = self.markers.index(marker)
+    ax = self._top_axes
+    idx = ax.markers.index(marker)
     marker.remove()
-    self.markers.pop(idx)
-    return self.markers[-1] if len(self.markers) > 0 else None
+    ax.markers.pop(idx)
+    return ax.markers[-1] if len(ax.markers) > 0 else None
 
 def marker_delete_all(self):
     """ remove all markers from axes
     """
-    for m in self.markers:
+    ax = self._top_axes
+    for m in ax.markers:
         m.remove()
 
-    self.marker_active = None
-    self.markers = []
+    ax.marker_active = None
+    ax.markers = []
 
 def marker_set_params(self, **kwargs):
     """ allows for updates to axes marker parameters if axes requires unique parameters
@@ -63,7 +65,7 @@ def marker_set_params(self, **kwargs):
     self.marker_params.update(dict(**kwargs))
 
 def marker_ignore(self, *lines):
-    """ flags lines that should not accept markers (i.e. smithchart lines)
+    """ flags lines that should not accept markers (i.e. axvlines)
     """
     lines = list(lines)
     self.marker_ignorelines += lines
@@ -88,6 +90,7 @@ def marker_link(self, *axes):
         ax._top_axes.marker_linked_axes.append(self._top_axes)
 
 def _marker_yformat(self, xd, yd, mxd=None):
+
     yformatter = self.yaxis.get_major_formatter()
     if self.marker_params['yformat'] != None:
         return self.marker_params['yformat'](xd, yd, mxd=mxd)
@@ -98,8 +101,8 @@ def _marker_yformat(self, xd, yd, mxd=None):
     else:
         return '{:.3f}'.format(yd)
 
-
 def _marker_xformat(self, xd):
+
     xformatter = self.xaxis.get_major_formatter()
     if self.marker_params['xformat'] != None:
         return self.marker_params['xformat'](xd)
@@ -109,6 +112,10 @@ def _marker_xformat(self, xd):
         return '{:.3f}'.format(xd)
 
 def plot(self, *args, **kwargs):
+    # Patching axes plot so we can add a kwarg 'marker_xd' that allows lines to have distict xdata
+    # for marker xlabels. This is useful for plots on the complex plane, where the xdata is the real part
+    # of the line, but we the marker to show something else like frequency.
+
     mxd = kwargs.pop('marker_xd', None)
 
     ## change default linewidth to 1
@@ -124,6 +131,7 @@ def plot(self, *args, **kwargs):
     return lines
 
 def clear(self, *args, **kwargs):
+    # Patching axes clear so we can clean up markers 
 
     original = gorilla.get_original_attribute(self, 'clear')
     ret = original(*args, **kwargs)
@@ -135,16 +143,20 @@ def clear(self, *args, **kwargs):
     return ret
 
 def draw_lines_markers(self, blit=True):
-
+    """ Draws all lines and markers associated with axes onto canvas, and updates axes
+        background images used for blitting.
+        Parameters
+        ----------
+            blit (bool): If True, drawn artists will be blitted onto canvas and the background
+                         image will be updated. If False, the artists will be drawn but the canvas 
+                         will not be updated.
+    """
     self.figure.canvas.restore_region(self._all_background)
 
     for ax in self.axes.get_shared_x_axes().get_siblings(self):
         for l in ax.lines:
-            if l not in ax.marker_ignorelines:# and l.get_visible():
+            if l not in ax.marker_ignorelines:
                 ax.draw_artist(l)
-    # for (ax, l) in lines:
-    #     ## if the line is not visible, draw artist will not draw it
-    #     ax.draw_artist(l)
     
     for m in self.markers:
         m.update_marker()
@@ -152,13 +164,8 @@ def draw_lines_markers(self, blit=True):
             m.draw()
 
     if blit:
-        #self.figure.canvas.blit(self.bbox)
 
-        #self.figure.c
-        #self.figure.draw_artist(self.yaxis)
-        # self.yaxis.remove()
         self.figure.canvas.blit(self.bbox)
-        #print(self.xaxis)
         self._active_background = self.figure.canvas.copy_from_bbox(self.bbox)
 
         if self.marker_active != None:
@@ -227,7 +234,7 @@ def marker_enable(self, interactive=True, link_all=False, **marker_params):
     """
     if interactive:
         ## this will overwrite the reference to a previously defined event manager.
-        ## as long as the user didn't store the old reference, the previous event bindings will be disconnected
+        ## as long as the user didn't store the old reference, the previous event bindings should be disconnected
         self._eventmanager = MarkerManager(self)
 
     default_inst = dict(**marker_default_params)
@@ -278,6 +285,11 @@ def marker_enable(self, interactive=True, link_all=False, **marker_params):
             patch = gorilla.Patch(ax.__class__, 'draw_lines_markers', draw_lines_markers)
             gorilla.apply(patch)
 
+    ## Shared axes are tricky here. We only want one axes to accept events and markers, so loop through
+    ## fig.axes and pick the first we find to be the top axes, and link all others to this one
+    ## with the attribute '_top_axes'. For the top axes, this attribute points to itself.
+
+    ## Note that if any axes are paired or created after marker_enable() is called, they won't be setup correctly
     self._top_axes = []
     sub_axes = []
     for ax in self.axes:
@@ -287,11 +299,12 @@ def marker_enable(self, interactive=True, link_all=False, **marker_params):
             continue
         ## loop through list of shared axes, included this axes
         for ax_s in ax.get_shared_x_axes().get_siblings(ax):
-            
             if ax_s != ax:
                 sub_axes.append(ax_s)
                 ax_s._top_axes = ax
     
+    ## Hide all the sub axes patches and prmote the zorder of the top_axes 
+    ## so it is drawn up on top of the others.
     for ax in self.axes:
         if ax._top_axes != ax:
             continue
@@ -304,6 +317,7 @@ def marker_enable(self, interactive=True, link_all=False, **marker_params):
         if len(zorder) > 1:
             ax.set_zorder(np.max(zorder)+1)
 
+    ## if specified, link all the axes of figure together
     if link_all: 
         for ax in self._top_axes:
             ax.marker_link(*self._top_axes)

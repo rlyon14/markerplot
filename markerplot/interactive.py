@@ -234,11 +234,10 @@ class PlotWindow(QtWidgets.QMainWindow):
             #print(i, self.traces_cb[i])
             if len(self.traces_cb[i]) > 1:
                 cb = QCheckBox('')
-                #qlabel = self.createCheckBoxLabel('All', size=14)
-                #cb.setTristate(False)
+
                 layout = self.traces[i][1]
                 layout.addWidget(cb, 0, 0)
-                #layout.addWidget(qlabel, 0, 1, alignment=Qt.AlignLeft)
+
                 ax = self.ax.flatten()[i]
                 cb.stateChanged.connect(self.state_changed(ax, None, cb, None))
                 self.cb_all[id(ax._top_axes)] = cb
@@ -338,16 +337,6 @@ class PlotWindow(QtWidgets.QMainWindow):
             for l_ax in ax.marker_linked_axes:
                 l_ax.marker_delete_all()
                 l_ax.draw_lines_markers()
-
-        # draw_lines_markers
-        # self.fig.canvas.draw()
-        # drawn = [self.fig]
-        # for ax in self.fig.axes:
-        #     for l_ax in ax.marker_linked_axes:
-        #         fig = l_ax.figure
-        #         if fig not in drawn:
-        #             fig.canvas.draw()
-        #             drawn.append(fig)
     
     def set_tight_layout(self):
         self.fig.tight_layout()
@@ -377,13 +366,10 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         for ax in self.fig.axes:
             self.scale_ylim_visible(ax)
-            #ax.relim(visible_only=True)
 
         self.show()
         
         plt.close(self.fig)
-
-        #self.fig.close()
         
 class CheckBox(QCheckBox):
     def keyPressEvent(self, event):

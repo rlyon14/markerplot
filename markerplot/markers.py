@@ -522,9 +522,8 @@ class Marker(object):
             self._hidden_markers.remove(idx)
 
     def draw(self):
-
-        #self.axes.figure.canvas.restore_region(self.axes._active_background)
-
+        """ Draws each artist associated with marker."""
+        
         self.set_visible(True)
 
         self.axes.draw_artist(self.xline)
@@ -536,8 +535,6 @@ class Marker(object):
         self.axes.draw_artist(self.xtext)
 
         self.set_visible(False)
-
-        #self.axes.figure.canvas.blit(self.axes.bbox)
 
 class MarkerManager(object):
     def __init__(self, fig, top_axes=None):
@@ -572,7 +569,6 @@ class MarkerManager(object):
         axes.marker_active.shift(direction)
         for ax in axes.marker_linked_axes:
             ax.marker_active.move_to_point(xd=axes.marker_active.xdpoint)
-            #ax.marker_active.shift(direction)
         
     def delete_linked(self, axes):
         new_marker = axes.marker_delete(axes.marker_active)
@@ -587,11 +583,9 @@ class MarkerManager(object):
             idx = axes.markers.index(axes.marker_active)
             for ax in axes.marker_linked_axes:
                 ax.marker_active = ax.markers[idx]
-                #ax._active_background = None
         else:
             for ax in axes.marker_linked_axes:
                 ax.marker_active = None
-                #ax._active_background = None
 
     def draw_active_marker(self, axes):
         active_background_none = False
@@ -726,16 +720,12 @@ class MarkerManager(object):
         return
 
     def update_background(self):
-        """ generates a background image for each axes without markers or lines, used for blitting
+        """ generates a blank background image for each axes
         """
         self.canvas_draw_disconnect()
 
         vis = []
         for ax in self.fig.axes:
-            ## TODO: this shouldn't be necessary
-            # for m in ax.markers:
-            #     m.set_visible(False)
-                
             for l in ax.lines:
                 if l not in ax.marker_ignorelines and l.get_visible():
                     l.set_visible(False)
@@ -754,7 +744,6 @@ class MarkerManager(object):
         self.canvas_draw_connect()
 
     def draw_all(self, blit=True):
-        ## savefig doesn't respect objects that are animated, it will draw them anyways.
         self.update_background()
 
         if blit:
@@ -762,10 +751,8 @@ class MarkerManager(object):
                 ax.draw_lines_markers()
                     
     def draw_lm(self, axes):
-        #for ax in axes.get_shared_x_axes().get_siblings(axes):
         axes.draw_lines_markers()
         for ax in axes.marker_linked_axes:
-            #for ax_s in axes.get_shared_x_axes().get_siblings(axes):
             ax.draw_lines_markers()
 
     def canvas_draw_disconnect(self):
