@@ -361,7 +361,6 @@ class PlotWindow(QtWidgets.QMainWindow):
         
 
     def _show(self):
-        
         self.update_traces_group(remove=False)
 
         for ax in self.fig.axes:
