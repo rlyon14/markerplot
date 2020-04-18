@@ -30,7 +30,7 @@ x1 = np.linspace(-2*np.pi, 2*np.pi, 100)
 x2 = np.linspace(-6*np.pi, 6*np.pi, 100)
 
 ax1.plot(x1, np.sin(x1), label='sin(x)')
-ax1.plot(x1, np.sin(x1), label='sin(x)')
+par1.plot(x1, np.cos(x1), label='sin(x)')
 ax2.plot(x1, np.cos(x1), label='cos(x)')
 
 

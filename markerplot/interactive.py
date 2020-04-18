@@ -11,10 +11,11 @@ import sys
 
 from time import time
 import matplotlib.pyplot as plt
-import markerplot
-from markerplot import marker_default_params
 import matplotlib
 import io
+
+import markerplot
+from markerplot import marker_default_params
 
 import sys
 import time
@@ -23,23 +24,25 @@ import win32clipboard
 from PIL import Image
 
 import numpy as np
-from matplotlib.backends.qt_compat import QtCore, QtWidgets, is_pyqt5
+from matplotlib.backends.qt_compat import is_pyqt5
 
-from matplotlib.backends.backend_qt5agg import (
-    FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
+from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
 
-qapp = QtWidgets.QApplication(sys.argv)
-
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
         matplotlib.use('Qt5Agg')
 
-        self.qapp = qapp#QtWidgets.QApplication(sys.argv)
+        #QtWidgets.QApplication(sys.argv)
+        qapp = QtWidgets.QApplication.instance()
+        if qapp is None:
+            qapp = QtWidgets.QApplication(sys.argv)
+
+        self.qapp = qapp
         
         super().__init__()
 
@@ -69,7 +72,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         marker_kw['link_all'] = kwargs.pop('link_all', False)
     
 
-        self.autoscale = kwargs.pop('autoscale', True)
+        self.autoscale = kwargs.pop('autoscale', False)
 
 
         self.single_trace = kwargs.pop('single_trace', False)
@@ -186,11 +189,13 @@ class PlotWindow(QtWidgets.QMainWindow):
 
     def update_traces_group(self, remove=True):
 
-        self.traces_cb = [[]]*(self.nrows * self.ncols)
+        self.traces_cb = [[] for i in range(self.nrows * self.ncols)]
+
         self.draw_updates = False
         
         for i, ax in enumerate(self.ax.flatten()):
-            row = 0
+            row = 1
+            layout = self.traces[i][1]
             for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
                 for l in ax_shared.lines:
 
@@ -213,7 +218,7 @@ class PlotWindow(QtWidgets.QMainWindow):
 
                     qlabel = self.createCheckBoxLabel(label, size=14)
                     
-                    layout = self.traces[i][1]
+                    
                     layout.addWidget(cb, row, 0)
                     layout.addWidget(qlabel, row, 1, alignment=Qt.AlignLeft)
                     
@@ -224,8 +229,21 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.draw_updates = True
 
         added_traces = False
+        self.cb_all = {}
         for i, (tr, ly) in enumerate(self.traces):
+            #print(i, self.traces_cb[i])
             if len(self.traces_cb[i]) > 1:
+                cb = CheckBox('')
+
+                layout = self.traces[i][1]
+                layout.addWidget(cb, 0, 0)
+
+                ax = self.ax.flatten()[i]
+                cb.stateChanged.connect(self.state_changed(ax, None, cb, None))
+                self.cb_all[id(ax._top_axes)] = cb
+
+            if len(self.traces_cb[i]) > 0:
+                #print('add')
                 added_traces = True
                 self.layout.addWidget(tr, i, 1)
         
@@ -253,39 +271,72 @@ class PlotWindow(QtWidgets.QMainWindow):
             min_y = miny - pad
             axes.set_ylim([min_y, max_y])
 
+    def update_all_cb(self, ax):
+        idx = list(self.ax.flatten()).index(ax._top_axes)
+        ax_cb = self.traces_cb[idx]
+        checks = np.zeros(len(ax_cb))
+        for i, cb in enumerate(ax_cb):
+            checks[i] = int(cb[0].isChecked())
+
+        self.draw_updates = False
+        if np.all(checks):
+            self.cb_all[id(ax._top_axes)].setCheckState(Qt.CheckState.Checked)
+        elif np.any(checks):
+            self.cb_all[id(ax._top_axes)].setCheckState(Qt.CheckState.PartiallyChecked)
+        else:
+            self.cb_all[id(ax._top_axes)].setCheckState(Qt.CheckState.Unchecked)
+        self.draw_updates = True
                 
     def state_changed(self, ax, l, cb, label):
 
         def calluser():
-            state = cb.isChecked()
-            l.set_visible(state)
-            if state:
-                l.set_label(label)
-            else:
-                l.set_label('')
-
             leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
-            ax.legend(fontsize='small', loc=leg_loc)
-        
+            state = cb.isChecked()
+            state = cb.checkState()
+            
+            if l == None:
+                idx = list(self.ax.flatten()).index(ax)
+                ax_cb = self.traces_cb[idx]
+                if self.draw_updates:
+                    self.draw_updates = False
+                    if state == Qt.CheckState.PartiallyChecked:
+                        cb.setCheckState(Qt.CheckState.Checked)
+                    
+                    for i, (cbn, ln, labeln) in enumerate(ax_cb):
+                        
+                        cbn.setChecked(state)
+
+                    self.draw_updates = True
+
+
+            else:
+                if self.draw_updates:
+                    self.update_all_cb(ax)
+                l.set_visible(state)
+                if state:
+                    l.set_label(label)
+                else:
+                    l.set_label('')
+
+
             if self.draw_updates:
-                self.scale_ylim_visible(ax)
-                self.canvas.draw()
+                if self.autoscale:
+                    self.scale_ylim_visible(ax)
+                    ax.legend(fontsize='small', loc=leg_loc)
+                    self.fig.canvas.draw()
+                else:
+                    ax._top_axes.draw_lines_markers()
+        
+
         return calluser
 
     def remove_all(self):
-        for ax in self.fig.axes:
+        for ax in self.fig._top_axes:
             ax.marker_delete_all()
+            ax.draw_lines_markers()
             for l_ax in ax.marker_linked_axes:
                 l_ax.marker_delete_all()
-
-        self.fig.canvas.draw()
-        drawn = [self.fig]
-        for ax in self.fig.axes:
-            for l_ax in ax.marker_linked_axes:
-                fig = l_ax.figure
-                if fig not in drawn:
-                    fig.canvas.draw()
-                    drawn.append(fig)
+                l_ax.draw_lines_markers()
     
     def set_tight_layout(self):
         self.fig.tight_layout()
@@ -310,13 +361,14 @@ class PlotWindow(QtWidgets.QMainWindow):
         
 
     def _show(self):
-        
         self.update_traces_group(remove=False)
 
         for ax in self.fig.axes:
             self.scale_ylim_visible(ax)
 
         self.show()
+        
+        plt.close(self.fig)
         
 class CheckBox(QCheckBox):
     def keyPressEvent(self, event):
