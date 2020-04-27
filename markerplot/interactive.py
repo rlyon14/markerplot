@@ -72,8 +72,6 @@ class PlotWindow(QtWidgets.QMainWindow):
         marker_kw['link_all'] = kwargs.pop('link_all', False)
     
 
-        self.autoscale = kwargs.pop('autoscale', False)
-
 
         self.single_trace = kwargs.pop('single_trace', False)
     
@@ -147,6 +145,8 @@ class PlotWindow(QtWidgets.QMainWindow):
         widgets = [(str(dir_  / 'icons/layout_large.png'), 'Layout', 'Apply Tight Layout', self.set_tight_layout),
                    (str(dir_  / 'icons/copy_large.png'), 'Copy', 'Copy To Clipboard', self.copy_figure),
                    (str(dir_  / 'icons/erase_large.png'), 'Delete', 'Remove All Markers', self.remove_all),
+                   (str(dir_  / 'icons/autoscale.png'), 'Autoscale', 'Autoscale Y-axis', self.autoscale_all),
+                   
         ]
 
         self.add_toolbar_actions(*widgets, end=False)
@@ -203,7 +203,7 @@ class PlotWindow(QtWidgets.QMainWindow):
                     if label == '' or label[0] == '_':
                         continue
 
-                    cb = CheckBox('')#QCheckBox('')
+                    cb = CheckBox('')
                     self.traces_cb[i].append((cb, l, label))
 
                     y = l.get_ydata()
@@ -231,19 +231,20 @@ class PlotWindow(QtWidgets.QMainWindow):
         added_traces = False
         self.cb_all = {}
         for i, (tr, ly) in enumerate(self.traces):
-            #print(i, self.traces_cb[i])
-            if len(self.traces_cb[i]) > 1:
-                cb = CheckBox('')
+        
+            cb = CheckBox('')
 
-                layout = self.traces[i][1]
-                layout.addWidget(cb, 0, 0)
+            layout = self.traces[i][1]
+            layout.addWidget(cb, 0, 0)
 
-                ax = self.ax.flatten()[i]
-                cb.stateChanged.connect(self.state_changed(ax, None, cb, None))
-                self.cb_all[id(ax._top_axes)] = cb
+            ax = self.ax.flatten()[i]
+            cb.stateChanged.connect(self.state_changed(ax, None, cb, None))
+            self.cb_all[id(ax._top_axes)] = cb
+
+            if len(self.traces_cb[i]) <= 1:
+                cb.hide()
 
             if len(self.traces_cb[i]) > 0:
-                #print('add')
                 added_traces = True
                 self.layout.addWidget(tr, i, 1)
         
@@ -254,8 +255,6 @@ class PlotWindow(QtWidgets.QMainWindow):
 
 
     def scale_ylim_visible(self, axes):
-        if not self.autoscale:
-            return
 
         miny, maxy = np.inf, -np.inf
         for l in axes.lines:
@@ -270,6 +269,7 @@ class PlotWindow(QtWidgets.QMainWindow):
             max_y = maxy + pad
             min_y = miny - pad
             axes.set_ylim([min_y, max_y])
+
 
     def update_all_cb(self, ax):
         idx = list(self.ax.flatten()).index(ax._top_axes)
@@ -320,15 +320,17 @@ class PlotWindow(QtWidgets.QMainWindow):
 
 
             if self.draw_updates:
-                if self.autoscale:
-                    self.scale_ylim_visible(ax)
-                    ax.legend(fontsize='small', loc=leg_loc)
-                    self.fig.canvas.draw()
-                else:
-                    ax._top_axes.draw_lines_markers()
+                ax._top_axes.draw_lines_markers()
         
 
         return calluser
+    
+    def autoscale_all(self):
+        for ax in self.ax.flatten():
+            leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
+            self.scale_ylim_visible(ax)
+            ax.legend(fontsize='small', loc=leg_loc)
+        self.fig.canvas.draw()
 
     def remove_all(self):
         for ax in self.fig._top_axes:
@@ -362,9 +364,6 @@ class PlotWindow(QtWidgets.QMainWindow):
 
     def _show(self):
         self.update_traces_group(remove=False)
-
-        for ax in self.fig.axes:
-            self.scale_ylim_visible(ax)
 
         self.show()
         
