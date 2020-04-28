@@ -33,6 +33,60 @@ import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
 
+class InputDialog(QtWidgets.QMainWindow):
+    def __init__(self, parent, select_callback):       
+        super(InputDialog, self).__init__(parent)
+
+        self._main = QtWidgets.QWidget()
+        self.select_callback = select_callback
+        
+        #self.setStyle(QStyleFactory.create('Fusion'))
+
+        self.setCentralWidget(self._main)
+        layout = QGridLayout(self._main)
+        #self.setWindowFlags(QtCore.Qt.WindowCloseButtonHint)
+
+        label1 = QLabel("Station ID:")
+        label2 = QLabel("Days:")
+
+        self.station_id = QLineEdit()
+        self.days = QLineEdit()
+
+        okbutton = QPushButton("Ok")
+        okbutton.clicked.connect(self.select_station)
+        okbutton.setDefault(True)
+        cancelbutton = QPushButton("Cancel")
+        cancelbutton.clicked.connect(self.select_cancel)
+
+        layout.addWidget(label1,          0, 0)
+        layout.addWidget(self.station_id,  0, 1, 1,2)
+
+        layout.addWidget(label2,          1, 0)
+        layout.addWidget(self.days, 1, 1,1,2)
+
+        layout.addWidget(okbutton,          2, 1)
+        layout.addWidget(cancelbutton,   2, 2)
+
+        layout.setSpacing(5)
+
+        #self.setLayout(layout)
+        
+        self.setWindowTitle('Station Entry')
+
+    def select_station(self):
+        id = self.station_id.text()
+        days = self.days.text()
+        self.select_callback(id, days)
+        self.close()
+
+    def select_cancel(self):
+        self.close()
+
+    def keyPressEvent(self, event):
+        if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
+            self.select_station()
+        super().keyPressEvent(event)
+
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
         matplotlib.use('Qt5Agg')
@@ -52,6 +106,7 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         self.setCentralWidget(self._main)
         self.layout = QGridLayout(self._main)
+
 
         marker_kw = {}
         for k in marker_default_params.keys():
@@ -142,10 +197,11 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.toolbar.removeAction(self.toolbar._actions['forward'])
         self.toolbar.removeAction(self.toolbar._actions['back'])
 
-        widgets = [(str(dir_  / 'icons/layout_large.png'), 'Layout', 'Apply Tight Layout', self.set_tight_layout),
+        widgets = [#(str(dir_  / 'icons/layout_large.png'), 'Layout', 'Apply Tight Layout', self.set_tight_layout),
                    (str(dir_  / 'icons/copy_large.png'), 'Copy', 'Copy To Clipboard', self.copy_figure),
                    (str(dir_  / 'icons/erase_large.png'), 'Delete', 'Remove All Markers', self.remove_all),
                    (str(dir_  / 'icons/autoscale.png'), 'Autoscale', 'Autoscale Y-axis', self.autoscale_all),
+                   (str(dir_  / 'icons/autoscale.png'), 'Set Data Format', 'Set Data Format', self.set_data_format),
                    
         ]
 
@@ -325,6 +381,10 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         return calluser
     
+    def set_data_format(self):
+        dialog = InputDialog(self.fig.app, self.autoscale_all)
+        dialog.show()
+
     def autoscale_all(self):
         for ax in self.ax.flatten():
             leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
