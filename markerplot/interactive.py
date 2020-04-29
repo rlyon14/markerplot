@@ -1,7 +1,7 @@
 from PySide2.QtCore import Qt
 from PySide2.QtWidgets import (QApplication, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
                              QLabel, QSizePolicy, QSlider, QSpacerItem, QPushButton, QScrollArea,
-                             QVBoxLayout, QWidget, QStyleFactory, QGroupBox, QCheckBox)
+                             QVBoxLayout, QWidget, QStyleFactory, QGroupBox, QCheckBox, QAction, QComboBox)
 
 from PySide2 import QtWidgets, QtCore, QtGui
 import numpy as np
@@ -13,6 +13,7 @@ from time import time
 import matplotlib.pyplot as plt
 import matplotlib
 import io
+import re
 
 import markerplot
 from markerplot import marker_default_params
@@ -44,39 +45,41 @@ class InputDialog(QtWidgets.QMainWindow):
 
         self.setCentralWidget(self._main)
         layout = QGridLayout(self._main)
-        #self.setWindowFlags(QtCore.Qt.WindowCloseButtonHint)
 
-        label1 = QLabel("Station ID:")
-        label2 = QLabel("Days:")
+        layout.setAlignment(Qt.AlignLeft)
 
-        self.station_id = QLineEdit()
-        self.days = QLineEdit()
+        self.data_select = [QComboBox() for i in parent.ax.flatten()]
 
-        okbutton = QPushButton("Ok")
-        okbutton.clicked.connect(self.select_station)
+        row = 0
+        for i in range(parent.nrows):
+            for j in range(parent.ncols):
+                 
+                label1 = QLabel("Axes {},{}".format(i,j))
+                
+                self.data_select[row].addItems(["Magnitude (dB)", "Phase (deg)", "VSWR"])
+                layout.addWidget(label1,          row, 0)
+                layout.addWidget(self.data_select[row],  row, 1, 1,2)
+
+                row += 1
+
+        okbutton = QPushButton("Apply")
+        okbutton.clicked.connect(self.select_apply)
         okbutton.setDefault(True)
         cancelbutton = QPushButton("Cancel")
         cancelbutton.clicked.connect(self.select_cancel)
-
-        layout.addWidget(label1,          0, 0)
-        layout.addWidget(self.station_id,  0, 1, 1,2)
-
-        layout.addWidget(label2,          1, 0)
-        layout.addWidget(self.days, 1, 1,1,2)
 
         layout.addWidget(okbutton,          2, 1)
         layout.addWidget(cancelbutton,   2, 2)
 
         layout.setSpacing(5)
 
-        #self.setLayout(layout)
+        self.setLayout(layout)
         
-        self.setWindowTitle('Station Entry')
+        self.setWindowTitle('Set Data Format')
 
-    def select_station(self):
-        id = self.station_id.text()
-        days = self.days.text()
-        self.select_callback(id, days)
+    def select_apply(self):
+        values = [str(ds.currentText()) for ds in self.data_select]
+        self.select_callback(values)
         self.close()
 
     def select_cancel(self):
@@ -91,6 +94,7 @@ class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
         matplotlib.use('Qt5Agg')
 
+        
         #QtWidgets.QApplication(sys.argv)
         qapp = QtWidgets.QApplication.instance()
         if qapp is None:
@@ -106,7 +110,6 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         self.setCentralWidget(self._main)
         self.layout = QGridLayout(self._main)
-
 
         marker_kw = {}
         for k in marker_default_params.keys():
@@ -167,12 +170,14 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         title = 'Figure {}'.format(self.fig.canvas.manager.num) if title == None else title
         self.setWindowTitle(title)
+        self._drop_event_handler = None
 
         self.fig.marker_enable(**marker_kw)
         self.fig.qapp = self.qapp
         self.fig.app = self
         self.draw_updates = False
         self.createTracesGroup()
+ 
 
     def add_toolbar_actions(self, *widgets, end=True):
         for icon_path, name, tooltip, action in widgets:
@@ -197,17 +202,38 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.toolbar.removeAction(self.toolbar._actions['forward'])
         self.toolbar.removeAction(self.toolbar._actions['back'])
 
-        widgets = [#(str(dir_  / 'icons/layout_large.png'), 'Layout', 'Apply Tight Layout', self.set_tight_layout),
+        widgets = [(str(dir_  / 'icons/layout_large.png'), 'Layout', 'Apply Tight Layout', self.set_tight_layout),
                    (str(dir_  / 'icons/copy_large.png'), 'Copy', 'Copy To Clipboard', self.copy_figure),
                    (str(dir_  / 'icons/erase_large.png'), 'Delete', 'Remove All Markers', self.remove_all),
                    (str(dir_  / 'icons/autoscale.png'), 'Autoscale', 'Autoscale Y-axis', self.autoscale_all),
-                   (str(dir_  / 'icons/autoscale.png'), 'Set Data Format', 'Set Data Format', self.set_data_format),
+                   #(str(dir_  / 'icons/autoscale.png'), 'Set Data Format', 'Set Data Format', self.set_data_format),
                    
         ]
 
         self.add_toolbar_actions(*widgets, end=False)
         self.toolbar.addSeparator()
+    
+    def add_drop_event_handler(self, handler):
+        self._drop_event_handler = handler
         
+        if self._drop_event_handler != None:
+            self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, e):
+            
+        if e.mimeData().hasText():
+            text = e.mimeData().text()
+            m = re.search(r's\d+p$', text)
+            if m != None:
+                e.accept()
+            else:
+                e.ignore()
+        else:
+            e.ignore()
+            
+    def dropEvent(self, e):
+        text = e.mimeData().text()
+        self._drop_event_handler(text)
             
     def createCheckBoxLabel(self, label, size=14):
         r,g,b,a=self.palette().base().color().getRgbF()
@@ -243,7 +269,7 @@ class PlotWindow(QtWidgets.QMainWindow):
                 self.traces[i*self.ncols + j] = (QGroupBox("Axes {},{}".format(i,j)), layout)
                 self.traces[i*self.ncols + j][0].setLayout(layout) 
 
-    def update_traces_group(self, remove=True):
+    def update_traces_group(self):
 
         self.traces_cb = [[] for i in range(self.nrows * self.ncols)]
 
@@ -382,8 +408,14 @@ class PlotWindow(QtWidgets.QMainWindow):
         return calluser
     
     def set_data_format(self):
-        dialog = InputDialog(self.fig.app, self.autoscale_all)
+        dialog = InputDialog(self.fig.app, self.change_data_format)
         dialog.show()
+
+    def change_data_format(self, values):
+        for i, ax in enumerate(self.ax.flatten()):
+            value = values[i]
+            ax.clear()
+        self.fig.canvas.draw()
 
     def autoscale_all(self):
         for ax in self.ax.flatten():
@@ -423,7 +455,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         
 
     def _show(self):
-        self.update_traces_group(remove=False)
+        self.update_traces_group()
 
         self.show()
         

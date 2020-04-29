@@ -629,6 +629,12 @@ class MarkerManager(object):
         if tmode != '':
             return None
 
+        try:
+            if event.button != 1:
+                return None
+        except:
+            pass
+            
         axes = event.inaxes
         if axes in self.fig.axes:
             return axes._top_axes
