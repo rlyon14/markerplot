@@ -312,9 +312,12 @@ class PlotWindow(QtWidgets.QMainWindow):
                 cb = CheckBox('')
                 self.traces_cb[i].append((cb, l, label))
                 
-                if l._i_hidden:
-                    cb.setChecked(False)
-                else:
+                try:
+                    if l._i_hidden:
+                        cb.setChecked(False)
+                    else:
+                        cb.setChecked(True)
+                except:
                     cb.setChecked(True)
 
                 cb.stateChanged.connect(self.state_changed(ax, l, cb, label))
