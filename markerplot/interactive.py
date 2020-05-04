@@ -34,6 +34,20 @@ import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
 
+def hide_lines(*lines, state=True):
+    for l in lines:
+        l._i_hidden = state
+        l.set_visible(not state)
+        if not state:
+            try:
+                l.set_label(l._i_label)
+            except:
+                pass
+        else:
+            l._i_label = l.get_label()
+            l.set_label('')
+        
+
 class InputDialog(QtWidgets.QMainWindow):
     def __init__(self, parent, select_callback):       
         super(InputDialog, self).__init__(parent)
@@ -56,7 +70,7 @@ class InputDialog(QtWidgets.QMainWindow):
                  
                 label1 = QLabel("Axes {},{}".format(i,j))
                 
-                self.data_select[row].addItems(["Magnitude (dB)", "Phase (deg)", "VSWR"])
+                self.data_select[row].addItems(["Magnitude (dB)", "Phase (deg)", "Unwrapped Phase (deg)", "VSWR"])
                 layout.addWidget(label1,          row, 0)
                 layout.addWidget(self.data_select[row],  row, 1, 1,2)
 
@@ -206,7 +220,7 @@ class PlotWindow(QtWidgets.QMainWindow):
                    (str(dir_  / 'icons/copy_large.png'), 'Copy', 'Copy To Clipboard', self.copy_figure),
                    (str(dir_  / 'icons/erase_large.png'), 'Delete', 'Remove All Markers', self.remove_all),
                    (str(dir_  / 'icons/autoscale.png'), 'Autoscale', 'Autoscale Y-axis', self.autoscale_all),
-                   #(str(dir_  / 'icons/autoscale.png'), 'Set Data Format', 'Set Data Format', self.set_data_format),
+                   (str(dir_  / 'icons/autoscale.png'), 'Set Data Format', 'Set Data Format', self.set_data_format),
                    
         ]
 
@@ -269,45 +283,54 @@ class PlotWindow(QtWidgets.QMainWindow):
                 self.traces[i*self.ncols + j] = (QGroupBox("Axes {},{}".format(i,j)), layout)
                 self.traces[i*self.ncols + j][0].setLayout(layout) 
 
+                
+
     def update_traces_group(self):
 
         self.traces_cb = [[] for i in range(self.nrows * self.ncols)]
 
         self.draw_updates = False
         
+        
         for i, ax in enumerate(self.ax.flatten()):
             row = 1
             layout = self.traces[i][1]
-            for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
-                for l in ax_shared.lines:
-
+            #for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
+            for l in ax.lines:
+                try:
+                    label = l._i_label
+                except:
                     label = l.get_label()
-                    if label == '' or label[0] == '_':
-                        continue
 
-                    cb = CheckBox('')
-                    self.traces_cb[i].append((cb, l, label))
+                if len(label) and label[0] == '_':
+                    continue
 
-                    y = l.get_ydata()
-                    y = np.where(np.isinf(y), np.nan, y)
-                    l.ymin, l.ymax  = np.nanmin(y), np.nanmax(y)
-                    
+                y = l.get_ydata()
+                y = np.where(np.isinf(y), np.nan, y)
+                l.ymin, l.ymax  = np.nanmin(y), np.nanmax(y)
+
+                cb = CheckBox('')
+                self.traces_cb[i].append((cb, l, label))
+                
+                if l._i_hidden:
+                    cb.setChecked(False)
+                else:
                     cb.setChecked(True)
 
-                    cb.stateChanged.connect(self.state_changed(ax_shared, l, cb, label))
-                    if self.single_trace:
-                        cb.setChecked(row==0)
+                cb.stateChanged.connect(self.state_changed(ax, l, cb, label))
+                if self.single_trace:
+                    cb.setChecked(row==0)
 
-                    qlabel = self.createCheckBoxLabel(label, size=14)
-                    
-                    
-                    layout.addWidget(cb, row, 0)
-                    layout.addWidget(qlabel, row, 1, alignment=Qt.AlignLeft)
-                    
-                    row += 1
+                qlabel = self.createCheckBoxLabel(label, size=14)
+                
+                layout.addWidget(cb, row, 0)
+                layout.addWidget(qlabel, row, 1, alignment=Qt.AlignLeft)
+                
+                row += 1
 
-                leg_loc = ax_shared.get_legend()._loc_real if ax_shared.get_legend() != None else 0
-                ax_shared.legend(fontsize='small', loc=leg_loc)
+            leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
+            ax.legend(fontsize='small', loc=leg_loc)
+
         self.draw_updates = True
 
         added_traces = False
@@ -340,7 +363,7 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         miny, maxy = np.inf, -np.inf
         for l in axes.lines:
-            if not l.get_visible() or l.get_label() == '' or l.get_label()[0] == '_':
+            if not l.get_visible():
                 continue
             
             miny = l.ymin if l.ymin < miny else miny
@@ -394,11 +417,8 @@ class PlotWindow(QtWidgets.QMainWindow):
             else:
                 if self.draw_updates:
                     self.update_all_cb(ax)
-                l.set_visible(state)
-                if state:
-                    l.set_label(label)
-                else:
-                    l.set_label('')
+                #l.set_visible(state)
+                hide_lines(*[l], state=not state)
 
 
             if self.draw_updates:
@@ -415,7 +435,11 @@ class PlotWindow(QtWidgets.QMainWindow):
         for i, ax in enumerate(self.ax.flatten()):
             value = values[i]
             ax.clear()
+            self._data_format_handler(ax, value)
         self.fig.canvas.draw()
+
+    def add_data_format_handler(self, func):
+        self._data_format_handler = func
 
     def autoscale_all(self):
         for ax in self.ax.flatten():
@@ -455,6 +479,9 @@ class PlotWindow(QtWidgets.QMainWindow):
         
 
     def _show(self):
+        for ax in self.ax.flatten():
+            hide_lines(*ax.lines, state=False)
+
         self.update_traces_group()
 
         self.show()
