@@ -368,6 +368,10 @@ class PlotWindow(QtWidgets.QMainWindow):
         for l in axes.lines:
             if not l.get_visible():
                 continue
+
+            y = l.get_ydata()
+            y = np.where(np.isinf(y), np.nan, y)
+            l.ymin, l.ymax  = np.nanmin(y), np.nanmax(y)
             
             miny = l.ymin if l.ymin < miny else miny
             maxy = l.ymax if l.ymax > maxy else maxy
