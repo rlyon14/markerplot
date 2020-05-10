@@ -441,6 +441,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         self._drop_event_handler(text)
         self.update_axes_groups()
         self.autoscale_x()
+        self.remove_all()
         self.fig.canvas.draw()
 
     def set_data_format(self):
