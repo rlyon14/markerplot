@@ -34,22 +34,15 @@ import matplotlib.pyplot as plt
 
 dir_ = Path(__file__).parent
 
-def hide_lines(*lines, state=True):
-    for l in lines:
-        l._i_hidden = state
-        l.set_visible(not state)
-        if not state:
-            try:
-                l.set_label(l._i_label)
-            except:
-                pass
-        else:
-            l._i_label = l.get_label()
-            l.set_label('')
-        
+class CheckBox(QCheckBox):
+    def keyPressEvent(self, event):
+        if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
+            self.nextCheckState()
+        super(CheckBox, self).keyPressEvent(event)
+
 
 class InputDialog(QtWidgets.QMainWindow):
-    def __init__(self, parent, select_callback):       
+    def __init__(self, parent, select_callback):
         super(InputDialog, self).__init__(parent)
 
         self._main = QtWidgets.QWidget()
@@ -70,7 +63,7 @@ class InputDialog(QtWidgets.QMainWindow):
                  
                 label1 = QLabel("Axes {},{}".format(i,j))
                 
-                self.data_select[row].addItems(["Magnitude (dB)", "Phase (deg)", "Unwrapped Phase (deg)", "VSWR"])
+                self.data_select[row].addItems(["Magnitude (dB)", "Phase (deg)", "VSWR"])
                 layout.addWidget(label1,          row, 0)
                 layout.addWidget(self.data_select[row],  row, 1, 1,2)
 
@@ -104,12 +97,177 @@ class InputDialog(QtWidgets.QMainWindow):
             self.select_station()
         super().keyPressEvent(event)
 
+class LineCheckBox():
+    """ Holds the checkbox, label, and data for a line on the interactive plot """
+    def __init__(self, window, axes, line, cb_all_update):
+        self.is_visible = True
+        self.window = window
+        self.line = line
+        self.axes = axes
+        self.cb = CheckBox('')
+        self.cb.stateChanged.connect(self.state_changed)
+
+        self.label = self.line.get_label()
+        self.cb_label = None
+        self.cb_all_update = cb_all_update
+
+    def add_to_layout(self, layout, row):
+        self.create_cb_label()
+        layout.addWidget(self.cb, row, 0)
+        layout.addWidget(self.cb_label, row, 1, alignment=Qt.AlignLeft)
+
+    def set_line_visible(self, state=True):
+        self.line.set_visible(state)
+        label = self.label if state else ''
+        self.line.set_label('')
+
+    def set_cb_enabled(self, state=True):
+        self.cb.setEnabled(state)
+
+    def get_cb_state(self):
+        return self.cb.isChecked()
+
+    def set_cb_state(self, state):
+        self.cb.setChecked(state)
+
+    def create_cb_label(self, size=14):
+        r,g,b,a=self.window.palette().base().color().getRgbF()
+
+        _figure=Figure(edgecolor=(r,g,b), facecolor=(r,g,b), dpi=100)
+
+        _canvas=FigureCanvas(_figure)
+
+        _figure.clear()
+        text=_figure.suptitle(
+            self.label,
+            x=0.0,
+            y=1.0,
+            horizontalalignment='left',
+            verticalalignment='top',
+            size='small'
+        )
+        _canvas.draw()
+
+        (x0,y0),(x1,y1)=text.get_window_extent().get_points()
+        w=x1-x0; h=y1-y0
+        
+        _canvas.setFixedSize(w,h)
+        self.cb_label = _canvas
+
+    def state_changed(self):
+
+        state = self.cb.isChecked()
+
+        self.cb_all_update()
+        self.set_line_visible(state)
+
+        if self.window.draw_updates:
+            self.axes._top_axes.draw_lines_markers()
+
+class AxesCheckBoxGroup():
+    def __init__(self, window, axes, label=''):
+        self.layout = QGridLayout()
+        self.layout.setAlignment(Qt.AlignLeft)
+                
+        self.group = QGroupBox(label)
+        self.group.setLayout(self.layout)
+
+        self.window = window
+        self.axes = axes
+        self.lines_cb = []
+        self.lines = []
+
+        self.all_cb = CheckBox('')
+        self.all_cb.stateChanged.connect(self.cb_all_state_changed)
+        self.layout.addWidget(self.all_cb, 0, 0)
+        
+        self.leg_loc = self.axes.get_legend()._loc_real if self.axes.get_legend() != None else 0
+    
+    def add_to_layout(self, layout, row, col):
+        self.create_checkboxes()
+        layout.addWidget(self.group, row, col)
+
+    def cb_all_state_changed(self):
+
+        state = self.all_cb.checkState()
+
+        if self.window.draw_updates:
+
+            self.window.set_draw_updates(False)
+
+            if state == Qt.CheckState.PartiallyChecked:
+                state = Qt.CheckState.Checked
+                self.all_cb.setCheckState(state)
+                
+            for l_cb in self.lines_cb:
+                l_cb.set_cb_state(state)
+
+            self.axes._top_axes.draw_lines_markers()
+            self.window.set_draw_updates(True)
+
+    def cb_all_update(self):
+        checks = np.zeros(len(self.lines_cb))
+        for i, cb in enumerate(self.lines_cb):
+            checks[i] = int(cb.get_cb_state())
+
+        prev = self.window.set_draw_updates(False)
+        if np.all(checks):
+            self.all_cb.setCheckState(Qt.CheckState.Checked)
+        elif np.any(checks):
+            self.all_cb.setCheckState(Qt.CheckState.PartiallyChecked)
+        else:
+            self.all_cb.setCheckState(Qt.CheckState.Unchecked)
+
+        self.window.set_draw_updates(prev)
+
+    def create_checkboxes(self):
+
+        prev = self.window.set_draw_updates(False)
+        self.lines = []
+
+        for l in self.axes.lines:
+            ## ignore lines with no labels
+            if len(l.get_label()) and l.get_label()[0] != '_':
+                self.lines.append(l)
+        
+        self.lines_cb = [LineCheckBox(self.window, self.axes, l, self.cb_all_update) for l in self.lines]
+
+        for i, l_cb in enumerate(self.lines_cb):
+            
+            l_cb.add_to_layout(self.layout, i+1)
+            l_cb.set_cb_state(True)
+
+        self.axes.legend(fontsize='small', loc=self.leg_loc)
+
+        if not len(self.lines):
+            self.all_cb.hide()
+
+        self.window.set_draw_updates(prev)
+
+    def scale_ylim_visible(self):
+
+        miny, maxy = np.inf, -np.inf
+        for l in self.axes.lines:
+            if not l.get_visible():
+                continue
+
+            y = l.get_ydata()
+            y = np.where(np.isinf(y), np.nan, y)
+            l.ymin, l.ymax  = np.nanmin(y), np.nanmax(y)
+            
+            miny = l.ymin if l.ymin < miny else miny
+            maxy = l.ymax if l.ymax > maxy else maxy
+
+        if np.all(np.isfinite([miny, maxy])):
+            pad = (maxy - miny)/20
+            max_y = maxy + pad
+            min_y = miny - pad
+            axes.set_ylim([min_y, max_y])         
+
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
         matplotlib.use('Qt5Agg')
 
-        
-        #QtWidgets.QApplication(sys.argv)
         qapp = QtWidgets.QApplication.instance()
         if qapp is None:
             qapp = QtWidgets.QApplication(sys.argv)
@@ -128,9 +286,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         marker_kw = {}
         for k in marker_default_params.keys():
             if k in kwargs.keys():
-                v = kwargs.pop(k)
-                marker_kw[k] = v
-
+                marker_kw[k] = kwargs.pop(k)
 
         title = kwargs.pop('title', None)
         icon = kwargs.pop('icon', None)
@@ -138,15 +294,11 @@ class PlotWindow(QtWidgets.QMainWindow):
         if icon != None:
             self.setWindowIcon(QtGui.QIcon(str(icon)))
         
-        
         marker_kw['interactive'] = kwargs.pop('interactive', True)
         marker_kw['top_axes'] = kwargs.pop('top_axes', None)
         marker_kw['link_all'] = kwargs.pop('link_all', False)
-    
-
 
         self.single_trace = kwargs.pop('single_trace', False)
-    
 
         subplot_kw = kwargs.pop('subplot_kw', {})
         sharex = kwargs.pop('sharex', False)
@@ -155,11 +307,13 @@ class PlotWindow(QtWidgets.QMainWindow):
 
         self.fig = plt.figure(**kwargs)
         
-        self.ax = self.fig.subplots(nrows, ncols, squeeze=False, 
+        self.axes_grid = self.fig.subplots(nrows, ncols, squeeze=False, 
             sharex=False, 
             sharey=False, 
             subplot_kw =subplot_kw, 
             gridspec_kw=gridspec_kw)
+
+        self.axes = self.axes_grid.flatten()
         
         self.nrows = nrows
         self.ncols = ncols
@@ -190,8 +344,16 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.fig.qapp = self.qapp
         self.fig.app = self
         self.draw_updates = False
-        self.createTracesGroup()
+        self.axes_cb_group = []
+        
+        for i, ax in enumerate(self.axes):
+            ax_cb = AxesCheckBoxGroup(self, ax, "Axes {},{}".format(i//self.nrows, i%self.nrows))
+            self.axes_cb_group.append(ax_cb)
  
+    def set_draw_updates(self, state):
+        prev = self.draw_updates
+        self.draw_updates = state
+        return prev
 
     def add_toolbar_actions(self, *widgets, end=True):
         for icon_path, name, tooltip, action in widgets:
@@ -248,191 +410,7 @@ class PlotWindow(QtWidgets.QMainWindow):
     def dropEvent(self, e):
         text = e.mimeData().text()
         self._drop_event_handler(text)
-            
-    def createCheckBoxLabel(self, label, size=14):
-        r,g,b,a=self.palette().base().color().getRgbF()
 
-        _figure=Figure(edgecolor=(r,g,b), facecolor=(r,g,b), dpi=100)
-
-        _canvas=FigureCanvas(_figure)
-
-        _figure.clear()
-        text=_figure.suptitle(
-            label,
-            x=0.0,
-            y=1.0,
-            horizontalalignment='left',
-            verticalalignment='top',
-            size='small'
-        )
-        _canvas.draw()
-
-        (x0,y0),(x1,y1)=text.get_window_extent().get_points()
-        w=x1-x0; h=y1-y0
-        
-        _canvas.setFixedSize(w,h)
-        return _canvas
-
-    def createTracesGroup(self):
-        self.traces = [(None, None)]*(self.nrows * self.ncols)
-        for i in range(self.nrows):
-            for j in range(self.ncols):
-                layout = QGridLayout()
-                layout.setAlignment(Qt.AlignLeft)
-                 
-                self.traces[i*self.ncols + j] = (QGroupBox("Axes {},{}".format(i,j)), layout)
-                self.traces[i*self.ncols + j][0].setLayout(layout) 
-
-                
-
-    def update_traces_group(self):
-
-        self.traces_cb = [[] for i in range(self.nrows * self.ncols)]
-
-        self.draw_updates = False
-        
-        
-        for i, ax in enumerate(self.ax.flatten()):
-            row = 1
-            layout = self.traces[i][1]
-            #for ax_shared in ax.get_shared_x_axes().get_siblings(ax):
-            for l in ax.lines:
-                try:
-                    label = l._i_label
-                except:
-                    label = l.get_label()
-
-                if len(label) and label[0] == '_':
-                    continue
-
-                y = l.get_ydata()
-                y = np.where(np.isinf(y), np.nan, y)
-                l.ymin, l.ymax  = np.nanmin(y), np.nanmax(y)
-
-                cb = CheckBox('')
-                self.traces_cb[i].append((cb, l, label))
-                
-                try:
-                    if l._i_hidden:
-                        cb.setChecked(False)
-                    else:
-                        cb.setChecked(True)
-                except:
-                    cb.setChecked(True)
-
-                cb.stateChanged.connect(self.state_changed(ax, l, cb, label))
-                if self.single_trace:
-                    cb.setChecked(row==0)
-
-                qlabel = self.createCheckBoxLabel(label, size=14)
-                
-                layout.addWidget(cb, row, 0)
-                layout.addWidget(qlabel, row, 1, alignment=Qt.AlignLeft)
-                
-                row += 1
-
-            leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
-            ax.legend(fontsize='small', loc=leg_loc)
-
-        self.draw_updates = True
-
-        added_traces = False
-        self.cb_all = {}
-        for i, (tr, ly) in enumerate(self.traces):
-        
-            cb = CheckBox('')
-
-            layout = self.traces[i][1]
-            layout.addWidget(cb, 0, 0)
-
-            ax = self.ax.flatten()[i]
-            cb.stateChanged.connect(self.state_changed(ax, None, cb, None))
-            self.cb_all[id(ax._top_axes)] = cb
-
-            if len(self.traces_cb[i]) <= 1:
-                cb.hide()
-
-            if len(self.traces_cb[i]) > 0:
-                added_traces = True
-                self.layout.addWidget(tr, i, 1)
-        
-        if added_traces:
-            self.layout.addWidget(QGroupBox(), i+1,1)
-            self.layout.setColumnStretch(0, 1)
-            self.layout.setRowStretch(i+1, 1)
-
-
-    def scale_ylim_visible(self, axes):
-
-        miny, maxy = np.inf, -np.inf
-        for l in axes.lines:
-            if not l.get_visible():
-                continue
-
-            y = l.get_ydata()
-            y = np.where(np.isinf(y), np.nan, y)
-            l.ymin, l.ymax  = np.nanmin(y), np.nanmax(y)
-            
-            miny = l.ymin if l.ymin < miny else miny
-            maxy = l.ymax if l.ymax > maxy else maxy
-
-        if np.all(np.isfinite([miny, maxy])):
-            pad = (maxy - miny)/20
-            max_y = maxy + pad
-            min_y = miny - pad
-            axes.set_ylim([min_y, max_y])
-
-
-    def update_all_cb(self, ax):
-        idx = list(self.ax.flatten()).index(ax._top_axes)
-        ax_cb = self.traces_cb[idx]
-        checks = np.zeros(len(ax_cb))
-        for i, cb in enumerate(ax_cb):
-            checks[i] = int(cb[0].isChecked())
-
-        self.draw_updates = False
-        if np.all(checks):
-            self.cb_all[id(ax._top_axes)].setCheckState(Qt.CheckState.Checked)
-        elif np.any(checks):
-            self.cb_all[id(ax._top_axes)].setCheckState(Qt.CheckState.PartiallyChecked)
-        else:
-            self.cb_all[id(ax._top_axes)].setCheckState(Qt.CheckState.Unchecked)
-        self.draw_updates = True
-                
-    def state_changed(self, ax, l, cb, label):
-
-        def calluser():
-            leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
-            state = cb.isChecked()
-            state = cb.checkState()
-            
-            if l == None:
-                idx = list(self.ax.flatten()).index(ax)
-                ax_cb = self.traces_cb[idx]
-                if self.draw_updates:
-                    self.draw_updates = False
-                    if state == Qt.CheckState.PartiallyChecked:
-                        cb.setCheckState(Qt.CheckState.Checked)
-                    
-                    for i, (cbn, ln, labeln) in enumerate(ax_cb):
-                        
-                        cbn.setChecked(state)
-
-                    self.draw_updates = True
-
-
-            else:
-                if self.draw_updates:
-                    self.update_all_cb(ax)
-                #l.set_visible(state)
-                hide_lines(*[l], state=not state)
-
-
-            if self.draw_updates:
-                ax._top_axes.draw_lines_markers()
-        
-
-        return calluser
     
     def set_data_format(self):
         dialog = InputDialog(self.fig.app, self.change_data_format)
@@ -443,6 +421,7 @@ class PlotWindow(QtWidgets.QMainWindow):
             value = values[i]
             ax.clear()
             self._data_format_handler(ax, value)
+        self.update_traces_group()
         self.fig.canvas.draw()
 
     def add_data_format_handler(self, func):
@@ -483,28 +462,28 @@ class PlotWindow(QtWidgets.QMainWindow):
         win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
         win32clipboard.CloseClipboard()
         buf.close()
-        
+
+    def create_axes_groups(self):
+        for i, ax_cb in enumerate(self.axes_cb_group):
+            ax_cb.add_to_layout(self.layout, i, 1)
+
+        self.layout.addWidget(QGroupBox(), i+1,1)
+        self.layout.setColumnStretch(0, 1)
+        self.layout.setRowStretch(i+1, 1)
 
     def _show(self):
-        for ax in self.ax.flatten():
-            hide_lines(*ax.lines, state=False)
 
-        self.update_traces_group()
+        self.create_axes_groups()
+        self.set_draw_updates(True)
 
         self.show()
         
         plt.close(self.fig)
-        
-class CheckBox(QCheckBox):
-    def keyPressEvent(self, event):
-        if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
-            self.nextCheckState()
-        super(CheckBox, self).keyPressEvent(event)
 
 
 def interactive_subplots(nrows=1, ncols=1, **kwargs):
     app = PlotWindow(nrows, ncols, **kwargs)
-    ax = np.array(app.ax)
+    ax = np.array(app.axes_grid)
 
     squeeze = kwargs.pop('squeeze', True)
 
