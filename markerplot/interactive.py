@@ -40,13 +40,13 @@ class CheckBox(QCheckBox):
             self.nextCheckState()
         super(CheckBox, self).keyPressEvent(event)
 
-
-class InputDialog(QtWidgets.QMainWindow):
-    def __init__(self, parent, select_callback):
-        super(InputDialog, self).__init__(parent)
+class DataFormatDialog(QtWidgets.QMainWindow):
+    def __init__(self, parent, select_callback, options):
+        super(DataFormatDialog, self).__init__(parent)
 
         self._main = QtWidgets.QWidget()
         self.select_callback = select_callback
+        self.options = options
         
         #self.setStyle(QStyleFactory.create('Fusion'))
 
@@ -55,19 +55,15 @@ class InputDialog(QtWidgets.QMainWindow):
 
         layout.setAlignment(Qt.AlignLeft)
 
-        self.data_select = [QComboBox() for i in parent.ax.flatten()]
+        self.data_select = [QComboBox() for i in parent.axes]
 
-        row = 0
-        for i in range(parent.nrows):
-            for j in range(parent.ncols):
+        for i, ax in enumerate(parent.axes):
                  
-                label1 = QLabel("Axes {},{}".format(i,j))
-                
-                self.data_select[row].addItems(["Magnitude (dB)", "Phase (deg)", "VSWR"])
-                layout.addWidget(label1,          row, 0)
-                layout.addWidget(self.data_select[row],  row, 1, 1,2)
-
-                row += 1
+            label = QLabel("Axes {},{}".format(i//parent.nrows, i%parent.nrows))
+            
+            self.data_select[i].addItems(self.options.keys())
+            layout.addWidget(label, i, 0)
+            layout.addWidget(self.data_select[i],  i, 1, 1, 2)
 
         okbutton = QPushButton("Apply")
         okbutton.clicked.connect(self.select_apply)
@@ -85,8 +81,13 @@ class InputDialog(QtWidgets.QMainWindow):
         self.setWindowTitle('Set Data Format')
 
     def select_apply(self):
-        values = [str(ds.currentText()) for ds in self.data_select]
-        self.select_callback(values)
+        options = []
+        for ds in self.data_select:
+            text = str(ds.currentText())
+            value = self.options[text]
+            options.append(value)
+
+        self.select_callback(options)
         self.close()
 
     def select_cancel(self):
@@ -94,7 +95,7 @@ class InputDialog(QtWidgets.QMainWindow):
 
     def keyPressEvent(self, event):
         if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
-            self.select_station()
+            self.select_apply()
         super().keyPressEvent(event)
 
 class LineCheckBox():
@@ -119,7 +120,7 @@ class LineCheckBox():
     def set_line_visible(self, state=True):
         self.line.set_visible(state)
         label = self.label if state else ''
-        self.line.set_label('')
+        self.line.set_label(label)
 
     def set_cb_enabled(self, state=True):
         self.cb.setEnabled(state)
@@ -162,6 +163,8 @@ class LineCheckBox():
         self.set_line_visible(state)
 
         if self.window.draw_updates:
+            leg_loc = self.axes.get_legend()._loc_real if self.axes.get_legend() != None else 0
+            self.axes.legend(fontsize='small', loc=leg_loc)  
             self.axes._top_axes.draw_lines_markers()
 
 class AxesCheckBoxGroup():
@@ -180,11 +183,9 @@ class AxesCheckBoxGroup():
         self.all_cb = CheckBox('')
         self.all_cb.stateChanged.connect(self.cb_all_state_changed)
         self.layout.addWidget(self.all_cb, 0, 0)
-        
-        self.leg_loc = self.axes.get_legend()._loc_real if self.axes.get_legend() != None else 0
     
     def add_to_layout(self, layout, row, col):
-        self.create_checkboxes()
+        self.update_checkboxes()
         layout.addWidget(self.group, row, col)
 
     def cb_all_state_changed(self):
@@ -203,6 +204,8 @@ class AxesCheckBoxGroup():
                 l_cb.set_cb_state(state)
 
             self.axes._top_axes.draw_lines_markers()
+            leg_loc = self.axes.get_legend()._loc_real if self.axes.get_legend() != None else 0
+            self.axes.legend(fontsize='small', loc=leg_loc)  
             self.window.set_draw_updates(True)
 
     def cb_all_update(self):
@@ -220,49 +223,67 @@ class AxesCheckBoxGroup():
 
         self.window.set_draw_updates(prev)
 
-    def create_checkboxes(self):
+    def update_checkboxes(self):
 
+        leg_loc = self.axes.get_legend()._loc_real if self.axes.get_legend() != None else 0
         prev = self.window.set_draw_updates(False)
-        self.lines = []
 
+        i = 1
         for l in self.axes.lines:
+            if l in self.lines:
+                i += 1
+                continue
+
             ## ignore lines with no labels
             if len(l.get_label()) and l.get_label()[0] != '_':
                 self.lines.append(l)
-        
-        self.lines_cb = [LineCheckBox(self.window, self.axes, l, self.cb_all_update) for l in self.lines]
+                l_cb = LineCheckBox(self.window, self.axes, l, self.cb_all_update)
+                l_cb.add_to_layout(self.layout, i+1)
+                l_cb.set_cb_state(True)
+                self.lines_cb.append(l_cb)
+                i += 1
 
-        for i, l_cb in enumerate(self.lines_cb):
-            
-            l_cb.add_to_layout(self.layout, i+1)
-            l_cb.set_cb_state(True)
-
-        self.axes.legend(fontsize='small', loc=self.leg_loc)
+        self.axes.legend(fontsize='small', loc=leg_loc)
 
         if not len(self.lines):
             self.all_cb.hide()
 
         self.window.set_draw_updates(prev)
 
-    def scale_ylim_visible(self):
+    def scale_visible(self, xscale=True, yscale=True):
 
-        miny, maxy = np.inf, -np.inf
+        ymin, ymax = np.inf, -np.inf
+        xmin, xmax = np.inf, -np.inf
         for l in self.axes.lines:
             if not l.get_visible():
                 continue
-
-            y = l.get_ydata()
-            y = np.where(np.isinf(y), np.nan, y)
-            l.ymin, l.ymax  = np.nanmin(y), np.nanmax(y)
             
-            miny = l.ymin if l.ymin < miny else miny
-            maxy = l.ymax if l.ymax > maxy else maxy
+            x = l.get_xdata()
+            y = l.get_ydata()
 
-        if np.all(np.isfinite([miny, maxy])):
-            pad = (maxy - miny)/20
-            max_y = maxy + pad
-            min_y = miny - pad
-            axes.set_ylim([min_y, max_y])         
+            y = np.where(np.isinf(y), np.nan, y)
+            ymin_t, ymax_t  = np.nanmin(y), np.nanmax(y)
+            xmin_t, xmax_t  = np.nanmin(x), np.nanmax(x)
+            
+            ymin = ymin_t if ymin_t < ymin else ymin
+            ymax = ymax_t if ymax_t > ymax else ymax
+
+            xmin = xmin_t if xmin_t < xmin else xmin
+            xmax = xmax_t if xmax_t > xmax else xmax
+
+        if np.all(np.isfinite([ymin, ymax])) and yscale:
+            ypad = (ymax - ymin)/20
+            max_y = ymax + ypad
+            min_y = ymin - ypad
+
+            self.axes.set_ylim([min_y, max_y])
+
+        if np.all(np.isfinite([xmin, xmax])) and xscale:
+            xpad = (xmax - xmin)/20
+            max_x = xmax + xpad
+            min_x = xmin - xpad
+
+            self.axes.set_xlim([min_x, max_x])       
 
 class PlotWindow(QtWidgets.QMainWindow):
     def __init__(self, nrows=1, ncols=1, **kwargs):
@@ -345,11 +366,18 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.fig.app = self
         self.draw_updates = False
         self.axes_cb_group = []
+
+        self.data_format_options = None
         
         for i, ax in enumerate(self.axes):
             ax_cb = AxesCheckBoxGroup(self, ax, "Axes {},{}".format(i//self.nrows, i%self.nrows))
             self.axes_cb_group.append(ax_cb)
  
+    def keyPressEvent(self, event):
+        if event.key() in (QtCore.Qt.Key_F5,):
+            self.fig.canvas.draw()
+        super().keyPressEvent(event)
+
     def set_draw_updates(self, state):
         prev = self.draw_updates
         self.draw_updates = state
@@ -381,8 +409,9 @@ class PlotWindow(QtWidgets.QMainWindow):
         widgets = [(str(dir_  / 'icons/layout_large.png'), 'Layout', 'Apply Tight Layout', self.set_tight_layout),
                    (str(dir_  / 'icons/copy_large.png'), 'Copy', 'Copy To Clipboard', self.copy_figure),
                    (str(dir_  / 'icons/erase_large.png'), 'Delete', 'Remove All Markers', self.remove_all),
-                   (str(dir_  / 'icons/autoscale.png'), 'Autoscale', 'Autoscale Y-axis', self.autoscale_all),
-                   (str(dir_  / 'icons/autoscale.png'), 'Set Data Format', 'Set Data Format', self.set_data_format),
+                   (str(dir_  / 'icons/autoscale_y.png'), 'Autoscale', 'Autoscale Y-Axis', self.autoscale_y),
+                   (str(dir_  / 'icons/autoscale_x.png'), 'Autoscale', 'Autoscale X-Axis', self.autoscale_x),
+                   (str(dir_  / 'icons/set_format_large.png'), 'Set Data Format', 'Set Data Format', self.set_data_format),
                    
         ]
 
@@ -410,28 +439,31 @@ class PlotWindow(QtWidgets.QMainWindow):
     def dropEvent(self, e):
         text = e.mimeData().text()
         self._drop_event_handler(text)
-
-    
-    def set_data_format(self):
-        dialog = InputDialog(self.fig.app, self.change_data_format)
-        dialog.show()
-
-    def change_data_format(self, values):
-        for i, ax in enumerate(self.ax.flatten()):
-            value = values[i]
-            ax.clear()
-            self._data_format_handler(ax, value)
-        self.update_traces_group()
+        self.update_axes_groups()
+        self.autoscale_x()
         self.fig.canvas.draw()
 
-    def add_data_format_handler(self, func):
-        self._data_format_handler = func
+    def set_data_format(self):
+        dialog = DataFormatDialog(self, self.change_data_format, self.data_format_options)
+        dialog.show()
 
-    def autoscale_all(self):
-        for ax in self.ax.flatten():
-            leg_loc = ax.get_legend()._loc_real if ax.get_legend() != None else 0
-            self.scale_ylim_visible(ax)
-            ax.legend(fontsize='small', loc=leg_loc)
+    def change_data_format(self, options):
+        for i, ax in enumerate(self.axes):
+            self._data_format_handler(ax, options[i])
+        self.autoscale_y()
+
+    def add_data_format_handler(self, func, format_options):
+        self._data_format_handler = func
+        self.data_format_options = format_options
+
+    def autoscale_x(self):
+        for ax_cb in self.axes_cb_group:
+            ax_cb.scale_visible(yscale=False)
+        self.fig.canvas.draw()
+
+    def autoscale_y(self):
+        for ax_cb in self.axes_cb_group:
+            ax_cb.scale_visible(xscale=False)
         self.fig.canvas.draw()
 
     def remove_all(self):
@@ -462,6 +494,10 @@ class PlotWindow(QtWidgets.QMainWindow):
         win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
         win32clipboard.CloseClipboard()
         buf.close()
+
+    def update_axes_groups(self):
+        for i, ax_cb in enumerate(self.axes_cb_group):
+            ax_cb.update_checkboxes()
 
     def create_axes_groups(self):
         for i, ax_cb in enumerate(self.axes_cb_group):

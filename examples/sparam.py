@@ -22,22 +22,24 @@ plotted_sp = []
 def drop_event_handler(text):
     p = Path(text)
     p = p.relative_to(r"file:\\")
-    print(p)
     s = Sparam(str(p))
-    plotted_sp.append(s)
-    s.plot(axes=ax1, label=p.stem)
-    fig.app.update_traces_group()
-    fig.canvas.draw()
+    
+    plotted_names = [sp.name for (sp, ax, lines)  in plotted_sp]
+    print(plotted_names, s.name)
+    if s.name not in plotted_names:
+        ax, lines = s.plot(axes=ax1, label=p.stem)
+        plotted_sp.append((s, ax, lines))
 
+format_options = {"Magnitude (dB)":'db', "Phase (deg)":'ang'}
 def set_data_format(axes, value):
-    outf = {"Magnitude (dB)":'db', "Phase (deg)":'ang', "VSWR":'vswr'}[value]
-    for sp in plotted_sp:
-        sp.plot(axes=axes, label=sp.name, outf=outf)
+    for (sp, ax, lines) in plotted_sp:
+        sp.plot(label=sp.name, outf=value, lines=lines)
 
 fig.app.add_drop_event_handler(drop_event_handler)
-fig.app.add_data_format_handler(set_data_format)
+fig.app.add_data_format_handler(set_data_format, format_options)
 
 s = Sparam(dir_ / 'TGA2598-SM.s2p')
-plotted_sp.append(s)
-s.plot(axes=ax1)
+
+ax, lines = s.plot(axes=ax1)
+plotted_sp.append((s, ax, lines))
 plt.show()
