@@ -366,6 +366,7 @@ class PlotWindow(QtWidgets.QMainWindow):
         self.fig.app = self
         self.draw_updates = False
         self.axes_cb_group = []
+        self.current_data_format = None
 
         self.data_format_options = None
         
@@ -439,6 +440,7 @@ class PlotWindow(QtWidgets.QMainWindow):
     def dropEvent(self, e):
         text = e.mimeData().text()
         self._drop_event_handler(text)
+        self.change_data_format(self.current_data_format)
         self.update_axes_groups()
         self.autoscale_x()
         self.remove_all()
@@ -449,13 +451,15 @@ class PlotWindow(QtWidgets.QMainWindow):
         dialog.show()
 
     def change_data_format(self, options):
+        self.current_data_format = options
         for i, ax in enumerate(self.axes):
             self._data_format_handler(ax, options[i])
         self.autoscale_y()
 
-    def add_data_format_handler(self, func, format_options):
+    def add_data_format_handler(self, func, format_options, initial=None):
         self._data_format_handler = func
         self.data_format_options = format_options
+        self.current_data_format = [initial]*len(self.axes)
 
     def autoscale_x(self):
         for ax_cb in self.axes_cb_group:
