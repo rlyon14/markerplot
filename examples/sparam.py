@@ -36,7 +36,7 @@ def set_data_format(axes, value):
         sp.plot(label=sp.name, outf=value, lines=lines)
 
 fig.app.add_drop_event_handler(drop_event_handler)
-fig.app.add_data_format_handler(set_data_format, format_options)
+fig.app.add_data_format_handler(set_data_format, format_options, initial='db')
 
 s = Sparam(dir_ / 'TGA2598-SM.s2p')
 
